@@ -51,7 +51,7 @@ export function parseMetadata(text: string, doc: Papng, warn: Warn) {
       doc.clips.push({ id: clip.id, name: (clip.name ?? clip.id) as string, start: clip.start_frame, end: clip.end_frame, plays: clip.play_count });
     }
     for (const group of (data.mask_groups ?? []) as unknown[]) {
-      if (!obj(group) || typeof group.id !== 'string' || !group.id || (group.name !== undefined && typeof group.name !== 'string') || !Array.isArray(group.palette_indices) || !group.palette_indices.every(i => uint(i) && i < doc.masks.length) || new Set(group.palette_indices).size !== group.palette_indices.length) { warn('잘못된 마스크 그룹 무시'); continue; }
+      if (!obj(group) || typeof group.id !== 'string' || !group.id || (group.name !== undefined && typeof group.name !== 'string') || !Array.isArray(group.palette_indices) || !group.palette_indices.every(i => uint(i) && i < doc.maskCount) || new Set(group.palette_indices).size !== group.palette_indices.length) { warn('잘못된 마스크 그룹 무시'); continue; }
       if (doc.groups.some(g => g.id === group.id)) { warn('중복 마스크 그룹 ID 무시'); continue; }
       doc.groups.push({ id: group.id, name: (group.name ?? group.id) as string, indices: group.palette_indices });
     }

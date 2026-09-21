@@ -1,4 +1,4 @@
-export interface Mask { hue: number; alpha: number }
+export interface MaskData { width: number; height: number; compressed: Uint8Array; valid: boolean }
 export interface Distribution { kind: number; items?: { value: number; weight: number }[]; valid: boolean }
 export interface Control { frame: number; type: number; values: number[]; valid: boolean }
 export interface Clip { id: string; name: string; start: number; end: number; plays: number }
@@ -11,7 +11,7 @@ export interface Frame {
 }
 export interface Papng {
   width: number; height: number; plays: number; interlace: number;
-  frames: Frame[]; masks: Mask[]; distributions: Distribution[];
+  frames: Frame[]; maskCount: number; maskData: MaskData[]; frameMasks: Map<number, number>; distributions: Distribution[];
   controls: Map<number, Control[]>; clips: Clip[]; groups: MaskGroup[];
   hints: Hints; warnings: string[]; byteLength: number;
 }

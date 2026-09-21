@@ -15,9 +15,9 @@ export function parseExtension(bytes: Uint8Array, doc: Papng, warn: Warn) {
   r.offset = size;
   // Once a section is fully bounded it can be retained after later truncation.
   try {
-    const count = r.u16(); r.need(count * 3);
-    if (count > 256) { r.bytes(count*3); warn('256개를 초과한 마스크 팔레트 비활성화'); }
-    else for (let i = 0; i < count; i++) doc.masks.push({ hue: r.u16(), alpha: r.u8() });
+    const count = r.u16();
+    if (count > 32768) warn('32768개를 초과한 마스크 개수: 마스크 기능 비활성화');
+    else doc.maskCount = count;
     const distributionCount = r.u8();
     for (let i = 0; i < distributionCount; i++) {
       const kind = r.u8(), length = r.u24(), p = new Reader(r.bytes(length));

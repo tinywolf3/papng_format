@@ -14,6 +14,8 @@ This document defines version 1.0 of PAPNG, an APNG-based format for editable pi
 
 PAPNG is an independent format specification. This document does not claim endorsement by W3C, IETF, or a registration authority. It defines no new Internet media type.
 
+This initial 1.0 definition replaces the repository's earlier unpublished alpha-marker draft; that draft is not an alternative encoding of this specification. The format version remains 1.0 and document revision remains 1.
+
 ## Contents
 
 - [1. Scope](#1-scope)
@@ -21,7 +23,7 @@ PAPNG is an independent format specification. This document does not claim endor
 - [3. Container and identification](#3-container-and-identification)
 - [4. Binary extension layout](#4-binary-extension-layout)
 - [5. Display hints](#5-display-hints)
-- [6. Mask pixels and palette](#6-mask-pixels-and-palette)
+- [6. Original pixels and mask planes](#6-original-pixels-and-mask-planes)
 - [7. Distribution palette](#7-distribution-palette)
 - [8. Frame controls](#8-frame-controls)
 - [9. Playback and reconstruction](#9-playback-and-reconstruction)
@@ -33,12 +35,12 @@ PAPNG is an independent format specification. This document does not claim endor
 - [15. Conformance](#15-conformance)
 - [Appendix A. Binary examples](#appendix-a-binary-examples)
 - [Appendix B. Behavioral examples](#appendix-b-behavioral-examples)
-- [Appendix C. Quantization error](#appendix-c-quantization-error)
+- [Appendix C. Precision and storage](#appendix-c-precision-and-storage)
 - [References](#references)
 
 ## 1. Scope
 
-PAPNG adds a shared hue/alpha palette, reusable random distributions, frame playback controls, and optional presentation metadata to an APNG container.
+PAPNG preserves original RGBA in APNG and adds shared 16-bit mask planes, reusable random distributions, frame playback controls, and optional presentation metadata.
 
 A conforming PAPNG file MUST satisfy the PNG/APNG container requirements in [PNG3](#references), together with this specification. Standard image compression, filtering, interlacing, chunk integrity, and APNG frame data remain governed by PNG3.
 
@@ -46,7 +48,7 @@ A PAPNG writer MUST use 8-bit samples and PNG color type 6: four bytes per store
 
 PAPNG MUST NOT store extension data in a synthetic animation frame. All animation frames are content frames, including frames that are composited without being presented.
 
-The extension permits ordinary APNG decoding, but does not promise the same appearance or playback in an ordinary APNG viewer. In particular, such a viewer need not restore mask colors or honor PAPNG timing and control behavior. Recognition of the `.papng` filename extension is application-dependent.
+Ordinary APNG viewers decode the original colors and per-pixel alpha. They need not apply runtime hue offsets or PAPNG timing and controls, so edited appearance and playback can differ. Recognition of the `.papng` filename extension is application-dependent.
 
 ## 2. Conventions
 
@@ -54,7 +56,7 @@ Capitalized requirement keywords have the meanings specified by BCP 14, [RFC2119
 
 A **writer** produces PAPNG files. A **reader** parses and reconstructs their image content. A **player** additionally executes the playback model. An **importer** converts ordinary images into PAPNG.
 
-All multibyte integers in `paEX` MUST be stored most significant byte first (big-endian). Fields MUST be serialized consecutively, without alignment padding. Lengths count bytes unless stated otherwise.
+All multibyte integers in `paEX` and `paMD` MUST be stored most significant byte first (big-endian). Fields MUST be serialized consecutively, without alignment padding. Lengths count bytes unless stated otherwise.
 
 | Type | Bytes | Range |
 | --- | ---: | --- |
@@ -99,7 +101,7 @@ A reader MUST inspect the `paEX` identifier and version rather than infer PAPNG 
 
 `frame_index` is the ordinal position of a frame in the APNG animation, beginning at 0. It is not an APNG chunk sequence number. A separate default image that is not part of the animation has no `frame_index`.
 
-Mask encoding applies to stored pixels in both the default image and the animation frames. A default image outside the animation MUST NOT be used as the animation's initial compositing state.
+Mask bindings apply only to animation frames. A default image outside the animation retains original RGBA and MUST NOT be used as the animation's initial compositing state.
 
 ### 3.3 Optional text
 
@@ -113,15 +115,14 @@ The `paEX` chunk data MUST have the following order:
 
 ```text
 Header
-uint16 mask_palette_count
-MaskEntry mask_palette[mask_palette_count]
+uint16 mask_count
 uint8 distribution_count
 Distribution distributions[distribution_count]
 uint32 frame_control_count
 FrameControl frame_controls[frame_control_count]
 ```
 
-Counts describe serialized entries, with one exception: the distribution count excludes built-in distribution index 0.
+`mask_count` declares logical slots without serialized entries. Other counts describe serialized entries; the distribution count excludes built-in distribution index 0.
 
 For version 1.0, all bytes after the header MUST be accounted for by these fields and their declared payloads. Writers MUST NOT append unstructured trailing data.
 
@@ -162,7 +163,7 @@ Writers MUST clear reserved bits and write zero to fields whose presence flag is
 
 ### 4.3 Body counts
 
-`mask_palette_count` MUST be in `[0, 256]`. Zero means there are no mask entries; 256 is stored literally as `0x0100`.
+`mask_count` MUST be in `[0, 32768]`. Zero means no mask slots. The value 32768 is stored literally as `0x8000` and permits indices 0 through 32767. Unused slots are permitted; this count bounds indices across the entire animation.
 
 `distribution_count` MUST be in `[0, 255]`. Its interpretation is defined in Section 7.
 
@@ -189,81 +190,91 @@ An application that applies the hints SHOULD prefer an explicit display size. If
 
 An invalid hint MUST be ignored independently of valid hints.
 
-## 6. Mask pixels and palette
+## 6. Original pixels and mask planes
 
-### 6.1 Pixel representation
+### 6.1 Original RGBA and mask indices
 
-A stored RGBA8 pixel whose alpha byte is not 1 is an ordinary pixel.
+Every stored image sample MUST remain original, unassociated RGBA8. No alpha value is reserved: alpha 1 is an ordinary alpha value. Mask membership MUST NOT be encoded into RGB or alpha channels. Different pixels in one mask MAY have different RGB and alpha values.
 
-A stored pixel whose alpha byte is exactly 1 is a mask pixel:
+`mask_count` declares resource-wide logical mask slots, not serialized palette entries and not the maximum number of distinct masks in a single frame. A valid index satisfies `0 <= mask_index < mask_count`. The same index refers to the same logical mask across frames. No hue, alpha, saturation, value, or hue offset is stored for a slot. An application supplies a finite hue offset in degrees per index; the default for every index is zero.
 
-| Stored channel | Meaning |
-| --- | --- |
-| R | `mask_index: uint8` |
-| G | `saturation: uint8` |
-| B | `value: uint8` |
-| A | Marker value 1 |
-
-The marker is tested on unmodified, unassociated image sample bytes. Readers MUST restore masks before color-space conversion, alpha premultiplication, resampling, or APNG compositing.
-
-### 6.2 Palette entries
-
-Each mask entry is exactly three bytes:
+A mask plane contains one big-endian `uint16` per source-frame pixel, in row-major order from the top left. The highest bit is the membership flag and the lower 15 bits are the index:
 
 ```text
-uint16 original_hue
-uint8 original_alpha
+active     = (word & 0x8000) != 0
+mask_index = word & 0x7FFF
+
+0x0000 = unassigned
+0x8000 = assigned to mask 0
+0xFFFF = assigned to mask 32767
 ```
 
-Entries are shared by the entire resource. A palette entry represents a hue/alpha pair, not a complete RGBA color; individual pixels retain their own saturation and value.
+Writers MUST encode every unassigned pixel as `0x0000`. An inactive word with nonzero low bits MUST be treated as unassigned with a warning. An active out-of-range index MUST leave that source pixel's original RGBA unchanged and produce a warning.
 
-Hue has 65,536 equally spaced positions around a full circle:
+### 6.2 Compressed mask pool and frame bindings
+
+At most one `paMD` chunk MAY occur, after `paEX` and before the first `IDAT`. Like `paEX`, its name is ancillary, private, reserved-bit-conforming, and unsafe to copy after image edits. Its PNG CRC covers the chunk type and the full chunk data. Its version is the version of `paEX`; it has no additional header or version fields. All integers are big-endian.
 
 ```text
-h = original_hue / 65536
-h_degrees = original_hue * 360 / 65536
-s = stored_G / 255
-v = stored_B / 255
+uint32 mask_data_count
+MaskData mask_data[mask_data_count]
+uint32 frame_mask_count
+FrameMask frame_masks[frame_mask_count]
+
+MaskData:
+  uint32 width
+  uint32 height
+  uint32 compressed_size
+  byte compressed_data[compressed_size]
+
+FrameMask:
+  uint32 frame_index
+  uint32 mask_data_index
 ```
 
-A reader MUST convert this HSV triple to RGB using Section 6.3 and assign `original_alpha` unchanged. All alpha values `[0, 255]` are valid in a palette entry, including 1. A restored pixel MUST NOT be interpreted a second time as a mask marker.
+`mask_data_index` is the zero-based position in `mask_data`. Invalid entries retain their positions. Each `MaskData` MUST contain exactly one independently decodable zlib stream as defined by RFC 1950, using DEFLATE and no preset dictionary. Its decompressed size MUST be exactly `2 * width * height` bytes. Width and height MUST be positive and no larger than the APNG canvas dimensions; `compressed_size` MUST be positive. The stream MUST have no trailing data. All chunk bytes MUST be accounted for. There are no PNG scanline filter bytes or Adam7 passes in a mask array, regardless of image interlacing.
 
-### 6.3 HSV conversion and rounding
+Every binding MUST reference an existing animation frame and mask-data entry. Map dimensions MUST equal that frame's `fcTL` width and height. The array uses local coordinates of the source rectangle; its canvas position comes from `fcTL`. The default image outside the animation cannot have a binding and remains original RGBA. An animation frame without a binding is entirely unassigned, even if a preceding frame used a mask. Bindings MUST NOT be inherited across frames.
 
-HSV calculations operate on normalized, encoded RGB channel values, before color-management transforms. They do not linearize RGB.
+A writer MUST emit at most one binding per frame. A reader encountering duplicates MUST warn and retain the first binding whose frame, map descriptor, and dimensions are valid; invalid preceding bindings do not block a later valid one. A later decompression failure uses original RGBA and does not select a different duplicate binding.
 
-Define nearest rounding for nonnegative values as `round(x) = floor(x + 0.5)`. Hue arithmetic is circular; modulo results MUST be nonnegative.
+Multiple frames MAY share one map, including frames at different canvas offsets when their local dimensions match. Writers SHOULD store identical dimensions and uncompressed arrays only once, omit entirely unassigned maps and their bindings, and omit `paMD` when there are no bindings. Readers MUST also accept redundant equal maps and all-zero maps. Map and binding counts are limited only by their field widths and the enclosing PNG chunk size. A `paMD` chunk MAY be absent even when `mask_count` is nonzero.
 
-For RGB-to-HSV conversion, let `r`, `g`, and `b` be the source bytes divided by 255, `m = min(r,g,b)`, `v = max(r,g,b)`, and `d = v - m`.
+A bad `paMD` CRC, duplicate chunk, or invalid chunk position MUST disable all mask bindings, preserving original RGBA. An invalid map descriptor, compressed stream, decompressed length, or frame reference MUST disable only affected bindings where safely identifiable. Readers MAY retain fully validated bindings before structural truncation and MUST stop at the first unbounded field. No failure in `paMD` changes frame timing or disables otherwise valid controls.
 
-- If `v = 0`, set `s = 0`; otherwise set `s = d / v`.
-- If `d = 0`, set `h = 0`.
-- Otherwise, when `v = r`, set `h = (((g-b)/d) mod 6) / 6`.
-- Otherwise, when `v = g`, set `h = ((b-r)/d + 2) / 6`.
-- Otherwise set `h = ((r-g)/d + 4) / 6`.
+### 6.3 Hue offsets and color conversion
 
-Quantize as follows:
+Hue offsets are runtime rendering parameters, not file fields. Missing offsets default to zero. A non-finite offset MUST produce a warning and be treated as zero. Offsets MUST be normalized modulo 360 degrees. An unassigned pixel or a zero normalized offset MUST preserve its four original bytes exactly, without an HSV round trip. The source alpha byte MUST remain unchanged for every offset, including alpha 0 and 1.
+
+For an assigned pixel with a nonzero offset, use the original encoded RGB samples before color management, alpha premultiplication, resampling, and APNG compositing. RGB is not linearized. Let `r`, `g`, and `b` be the source bytes divided by 255, `m = min(r,g,b)`, `v = max(r,g,b)`, and `d = v-m`.
+
+- If `d = 0`, retain the original RGB; a hue shift cannot color a gray pixel.
+- Otherwise set `s = d/v`.
+- When `v = r`, set `h = (((g-b)/d) mod 6)/6`.
+- Otherwise, when `v = g`, set `h = ((b-r)/d+2)/6`.
+- Otherwise set `h = ((r-g)/d+4)/6`.
 
 ```text
-H16 = round(h * 65536) mod 65536
-S8  = round(s * 255)
-V8  = round(v * 255)
+h_out = (h + hue_offset_degrees / 360) mod 1
+s_out = s
+v_out = v
+alpha_out = original_alpha
 ```
 
-For HSV-to-RGB conversion, calculate `c = v*s`, `q = 6*h`, `x = c*(1-abs((q mod 2)-1))`, and `m = v-c`. Select a triple from the following list by `floor(q)`:
+H, S, and V MUST NOT be quantized into integer storage fields. For HSV-to-RGB conversion, calculate `c = v*s`, `q = 6*h_out`, `x = c*(1-abs((q mod 2)-1))`, and `m = v-c`. Select a triple by `floor(q)`:
 
 ```text
 0: (c, x, 0)    1: (x, c, 0)    2: (0, c, x)
 3: (0, x, c)    4: (x, 0, c)    5: (c, 0, x)
 ```
 
-Add `m` to each component, multiply by 255, round using the rule above, and clamp to `[0,255]`. These formulas define the mathematical result; implementations SHOULD use sufficient precision to avoid errors near rounding boundaries.
+Add `m` to each component, multiply by 255, round as `floor(value+0.5)`, and clamp to `[0,255]`. Modulo results MUST be nonnegative. These formulas define the mathematical result; implementations SHOULD use sufficient precision near rounding boundaries. Every change is evaluated from the original source samples, never from a previously recolored image.
 
-### 6.4 Editing and invalid indices
+### 6.4 Compositing, edits, and caches
 
-Palette values MUST remain unchanged during playback. Before changing a palette, the application MUST suspend playback. It MUST discard composition state and palette-dependent caches and restart from frame 0 before continuing with the changed palette. Selecting a clip after the change uses the normal reconstruction procedure.
+Apply each source frame's mask and hue offsets before that frame's normal APNG blend operation, including during reconstruction and hidden visits. Do not blend, interpolate, or apply APNG disposal to mask indices themselves. Ordinary APNG disposal still applies to the resulting image state.
 
-An out-of-range mask index MUST produce a source pixel `RGBA(0,0,0,0)` and a warning. The frame's normal blend operation still applies to that transparent source pixel.
+Offsets MUST remain unchanged during playback. Before changing them, an application MUST suspend playback, discard composition state and color-dependent caches, and restart reconstruction from frame 0. A selected clip uses normal prefix reconstruction to its start. Decoded membership maps MAY remain cached because they do not depend on hue offsets.
 
 ## 7. Distribution palette
 
@@ -562,11 +573,11 @@ Each mask group has:
 | `name` | String, optional | Display name; defaults to `id` |
 | `palette_indices` | Array of integers | Mask palette indices belonging to the group |
 
-Indices MUST exist in the mask palette and MUST be unique within one group. Different groups MAY overlap. An empty group is permitted. A group is organizational metadata and does not change pixel decoding by itself.
+Indices MUST be less than `mask_count` and MUST be unique within one group. Different groups MAY overlap. An empty group is permitted. A group is organizational metadata and does not change pixel decoding by itself.
 
 ### 10.4 Example and recovery
 
-The following is informative and assumes at least eight frames and three mask entries:
+The following is informative and assumes at least eight frames and three mask slots:
 
 ```json
 {
@@ -598,7 +609,7 @@ Missing or ignored metadata MUST NOT prevent core image decoding or full-animati
 
 Import normalization applies to conversion from an ordinary image, not to loading an existing PAPNG resource.
 
-An importer MUST convert source samples to unassociated RGBA8. After this conversion, ordinary pixels with alpha 1 MUST be changed to alpha 2 before any PAPNG mask encoding. Other alpha values MUST NOT be changed by this marker-reservation rule.
+An importer MUST convert source samples to unassociated RGBA8. It MUST preserve all resulting RGBA bytes, including alpha 1, when adding mask membership. No channel value is reserved for masks.
 
 For each ordinary APNG frame:
 
@@ -608,9 +619,9 @@ For each ordinary APNG frame:
 
 An imported static image SHOULD become a one-frame APNG with one play and a 10 ms delay. No frame controls or additional distributions are required for this conversion.
 
-A PAPNG reader MUST preserve valid zero delays and recognize existing mask markers. Renaming a PAPNG file to `.png` or `.apng` MUST NOT by itself trigger import normalization.
+A PAPNG reader MUST preserve valid zero delays and use explicit mask bindings. Renaming a PAPNG file to `.png` or `.apng` MUST NOT by itself trigger import normalization.
 
-The importer SHOULD report marker and timing adjustments so an editor can make them visible to the user.
+The importer SHOULD report timing adjustments so an editor can make them visible to the user.
 
 ## 12. Error handling
 
@@ -624,7 +635,8 @@ Container errors remain subject to PNG3. Recovery is not a promise to reconstruc
 
 | Error | Required recovery |
 | --- | --- |
-| Mask index outside the available palette | Warn; substitute source RGBA(0,0,0,0) |
+| Active mask index outside `mask_count` | Warn; preserve that pixel's original RGBA |
+| Invalid mask data or binding | Warn; preserve original RGBA for affected bindings, as in Section 6.2 |
 | Invalid hint | Warn; ignore that hint |
 | Unusable distribution referenced by a control | Warn; use control recovery |
 | Invalid control payload, range, target, or reserved control type | Warn; use control recovery |
@@ -642,11 +654,11 @@ A distribution whose parameters are invalid still occupies its declared index sl
 
 Readers MUST verify the chunk boundary, CRC, identifier, counts, and declared lengths before using dependent data.
 
-For a recognizable version 1 extension with an invalid CRC, unusable header, or ambiguous duplicate `paEX` chunks, the extension MUST be disabled rather than interpreted from untrusted offsets. In PAPNG recovery mode, unavailable mask entries produce transparent source pixels; absent controls use ordinary PAPNG sequential timing, including its zero-delay rule.
+For a recognizable version 1 extension with an invalid CRC, unusable header, or ambiguous duplicate `paEX` chunks, the extension MUST be disabled rather than interpreted from untrusted offsets. In PAPNG recovery mode, masks are disabled and original RGBA is preserved; absent controls use ordinary PAPNG sequential timing, including its zero-delay rule.
 
 When a valid chunk contains a structurally truncated body, a reader MAY retain fully validated earlier sections. It MUST stop interpreting the body at the first field whose end cannot be located safely. It MUST NOT guess the location of subsequent sections. Unavailable data is handled as above.
 
-A palette count above 256 is invalid. If its declared byte span fits the chunk, a reader MAY skip that span and continue with later sections, but MUST disable that palette.
+A `mask_count` above 32768 is invalid. Readers MUST disable masks and MAY continue with distributions and controls; there are no serialized mask entries to skip.
 
 A file with no recognizable PAPNG extension, or an unsupported major version, is not a supported PAPNG 1.0 resource. An application MAY offer ordinary PNG/APNG decoding as a separately identified fallback. Such fallback MUST NOT be reported as successful PAPNG reconstruction.
 
@@ -658,9 +670,9 @@ Future minor revisions MUST retain the meaning and encoding of existing fields a
 
 A change that alters existing decoding or playback semantics requires a new major version. Future features that cannot be safely skipped MUST NOT rely solely on an older reader ignoring their data.
 
-An editor that changes frame order or removes frames MUST update control keys, absolute targets, relative deltas, distribution values used as targets, and clip ranges. If a shared distribution cannot preserve all of its references after an edit, the editor can create separate definitions within the format's count limit or report that the edit cannot be represented.
+An editor that changes frame order or removes frames MUST update control keys, absolute targets, relative deltas, distribution values used as targets, clip ranges, and frame-mask bindings. If a shared distribution cannot preserve all of its references after an edit, the editor can create separate definitions within the format's count limit or report that the edit cannot be represented.
 
-An editor that reorders or removes mask entries MUST update stored mask indices and mask-group references.
+An editor that renumbers or removes logical masks MUST update mask-array indices, `mask_count`, and mask-group references. An editor that reorders or removes mask-data entries MUST update every frame binding. Changing one frame's shared map MUST NOT modify unrelated frames: create a separate map when their membership should differ.
 
 Ordinary PNG/APNG editing tools are not required to understand these relationships. The unsafe-to-copy chunk property is not a guarantee of a valid editing round trip, particularly when animation or text metadata is changed. PAPNG-aware tools SHOULD validate all extension references before saving.
 
@@ -672,17 +684,17 @@ Readers MUST check arithmetic and byte availability before allocation, indexing,
 
 Applications should bound decompressed metadata size, maintain cancellation during reconstruction, and avoid repeated identical warnings. Those are host resource policies, not serialized PAPNG values.
 
-Mask data is not ordinary display RGB. Decoders that automatically premultiply alpha, perform color conversion, or discard low-alpha RGB values need a raw-sample path before mask restoration.
+Image data is original RGBA and mask data is a separate integer array. A raw unassociated sample path is required to apply hue offsets before premultiplication or color conversion and to preserve low-alpha RGB values.
 
-Caching canonical frame states can accelerate jumps. A useful cache includes saved disposal state, not only the visible canvas. Palette changes invalidate such caches.
+Caching canonical frame states can accelerate jumps. A useful cache includes saved disposal state, not only the visible canvas. Hue-offset changes invalidate such color-dependent caches, but not decoded mask arrays.
 
-Writers should preserve raw mask bytes exactly when performing lossless PNG filtering and compression. Re-encoding a rendered preview as ordinary RGBA is an export operation, not a lossless PAPNG save.
+Writers should preserve original RGBA and mask membership exactly. Compress each map independently and reuse equal maps across frames. Baking recolored preview pixels into RGBA is an export operation; runtime hue offsets are not serialized in v1.
 
 ## 15. Conformance
 
 A conforming **writer** emits the container profile, binary layout, valid references, supported values, and metadata constraints defined here.
 
-A conforming **core reader** restores mask pixels and canonical frame states and implements the specified parsing and recovery behavior. It MAY ignore display hints and text metadata.
+A conforming **core reader** applies runtime hue offsets through mask bindings and restores canonical frame states and implements the specified parsing and recovery behavior. It MAY ignore display hints and text metadata.
 
 A conforming **player** additionally implements all six control types, all five distribution kinds, rational timing, hidden-frame behavior, reconstruction-only traversal, and repetition rules. An implementation supporting only ordinary APNG playback MUST NOT claim full PAPNG playback support.
 
@@ -750,11 +762,23 @@ This is a complete 63-byte `paEX` data field with no hints, masks, additional di
 
 To place this data in a PNG stream, write a PNG chunk length of 63, chunk type `paEX`, these 63 bytes, and the standard PNG CRC for the type and data.
 
-### A.5 Mask restoration
+### A.5 Original alpha and hue offsets
 
-A palette entry `00 00 FF` has hue 0 and alpha 255. Stored pixel `00 FF FF 01` uses that entry with full saturation and value; its restored pixel is `FF 00 00 FF`.
+For `mask_count = 32768`, words `80 00` and `FF FF` select masks 0 and 32767 respectively. `00 00` leaves a pixel unassigned. Original pixel `FF 00 00 01` remains exactly unchanged when its offset is zero. At +180 degrees it becomes `00 FF FF 01`; alpha 1 is preserved. Other pixels with the same mask index retain their own original alpha and relative hue differences. Offset edits require the restart in Section 6.4.
 
-Palette entry `80 00 FF` changes the same stored pixel to cyan: `00 FF FF FF`. Updating this entry requires the playback reset described in Section 6.4.
+### A.6 Shared mask data
+
+The following complete `paMD` data has one 2-by-1 map and two bindings, for frames 0 and 1. Both source frames must be 2-by-1; `mask_count` must be at least 1. The decompressed words are `80 00 00 00`: the first pixel uses mask 0 and the second is unassigned.
+
+<!-- vector: shared-mask-data -->
+```hex
+00 00 00 01 00 00 00 02
+00 00 00 01 00 00 00 0C
+78 DA 6B 60 60 60 00 00
+02 04 00 81 00 00 00 02
+00 00 00 00 00 00 00 00
+00 00 00 01 00 00 00 00
+```
 
 ## Appendix B. Behavioral examples
 
@@ -791,25 +815,15 @@ The definition in A.2 is valid for relative jumps from frame 10 in an animation 
 
 The same definition is invalid for a delay numerator because the positive-weight value -3 is negative. A control using it for a delay falls back to 10 ms and sequential progression; the player does not discard -3 and select 5 with certainty.
 
-## Appendix C. Quantization error
+## Appendix C. Precision and storage
 
 This appendix is informative.
 
-For one RGB8-to-HSV-to-RGB8 round trip using Section 6.3, with the original quantized hue retained and no color-space transformation, the maximum error is one integer step per RGB channel. This excludes deliberate palette edits and repeated conversions.
+Original RGBA8 is stored without HSV quantization. With zero hue offsets, the mask operation has zero source-byte error, including alpha 0 and 1. APNG compositing, display color management, and the presentation surface are separate operations; this statement does not imply every composited pixel equals an individual source pixel.
 
-The maximum circular hue quantization error is half a hue step: approximately 0.002747 degrees. The maximum saturation error is 1/510. Value is exactly representable because it comes from the maximum RGB8 channel.
+For a nonzero offset, the deliberate hue change is evaluated from original RGB at full precision. The final RGB8 rounding error is at most half a channel step relative to the ideal real-valued transformed channel; floating-point implementations should handle rounding boundaries carefully. Alpha is copied exactly. Repeated edits do not accumulate error when each starts from the original pixels.
 
-Before final RGB rounding, the channel error is bounded by:
-
-```text
-255 * (1/510 + 3/65536)
-= 0.5 + 765/65536
-< 0.512
-```
-
-Rounding against an original integer RGB channel therefore yields an error of at most 1. Alpha is copied from the palette without quantization. The ordinary-image import adjustment from alpha 1 to alpha 2 is a separate rule.
-
-An editor can compare the original pixels with restored pixels to expose these differences.
+Before compression, a map costs two bytes per corresponding source pixel: a 50% addition to four-byte RGBA when every source pixel has a stored map. Actual file growth is not bounded by 50%, because image and mask compression ratios differ. Uniform regions, canonical zero words, omitting unused maps, and sharing identical arrays reduce storage. Each shared map can be decompressed independently, without traversing prior animation frames.
 
 ## References
 
@@ -817,3 +831,5 @@ An editor can compare the original pixels with restored pixels to expose these d
 - **RFC2119:** S. Bradner, *Key words for use in RFCs to Indicate Requirement Levels*, BCP 14, March 1997. [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 - **RFC8174:** B. Leiba, *Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words*, BCP 14, May 2017. [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174).
 - **RFC8259:** T. Bray, Ed., *The JavaScript Object Notation (JSON) Data Interchange Format*, December 2017. [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259).
+
+- **RFC1950:** P. Deutsch, J-L. Gailly, *ZLIB Compressed Data Format Specification version 3.3*, May 1996. [RFC 1950](https://www.rfc-editor.org/rfc/rfc1950).

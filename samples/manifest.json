@@ -2,10 +2,12 @@
   {
     "file": "palette-creature.papng",
     "title": "팔레트 정원",
-    "subtitle": "같은 명암, 다른 색상각",
+    "subtitle": "원본 RGBA 보존 · 색상각 변화량 편집",
     "features": [
-      "mask-palette",
-      "alpha",
+      "mask16",
+      "original-rgba",
+      "per-pixel-alpha",
+      "shared-maps",
       "display",
       "bbox",
       "scale",
@@ -98,5 +100,20 @@
     "frames": 300,
     "width": 1,
     "height": 1
+  },
+  {
+    "file": "alpha-ribbons.papng",
+    "title": "하나의 마스크, 일곱 알파",
+    "subtitle": "원본 알파 0·1·32·64·128·192·255와 마스크 공유",
+    "features": [
+      "mask16",
+      "per-pixel-alpha",
+      "alpha-one",
+      "original-hue-variation",
+      "shared-maps"
+    ],
+    "frames": 4,
+    "width": 28,
+    "height": 14
   }
 ]

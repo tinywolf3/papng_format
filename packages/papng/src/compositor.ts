@@ -1,4 +1,5 @@
-import { decodeFrame } from './pixels';
+import { decodeFrame, shiftHue } from './pixels';
+import { MaskPlanes } from './masks';
 import { StateCache, type CachedState } from './cache';
 import { type Frame, type Papng, type Warn } from './types';
 
@@ -6,10 +7,12 @@ export class Cancelled extends Error {}
 export type Cancel = () => boolean;
 export class Compositor {
   state?: CachedState;
+  readonly hueOffsets: Float64Array;
+  readonly masks: MaskPlanes;
   readonly cache: StateCache;
   priority = new Map<number,number>();
   reconstructions = 0;
-  constructor(readonly doc: Papng, budget: number, readonly warn: Warn) { this.cache = new StateCache(budget); }
+  constructor(readonly doc: Papng, budget: number, readonly warn: Warn) { this.cache = new StateCache(budget); this.hueOffsets = new Float64Array(doc.maskCount); this.masks = new MaskPlanes(doc,warn); }
   invalidate() { this.state = undefined; this.cache.clear(); }
   resetCurrent() { this.state = undefined; }
   private dispose(state: CachedState) {
@@ -41,7 +44,17 @@ export class Compositor {
       if (cancelled()) throw new Cancelled();
       if (state.frame >= 0) this.dispose(state);
       const frame = this.doc.frames[index];
-      const source = await decodeFrame(frame,this.doc.interlace,this.doc.masks,this.warn);
+      const source = await decodeFrame(frame,this.doc.interlace);
+      const mask = await this.masks.get(index);
+      if (mask) for (let pixel = 0; pixel < mask.length; pixel++) {
+        const word = mask[pixel];
+        if (!(word & 0x8000)) continue;
+        const shift = this.hueOffsets[word & 0x7fff];
+        if (!Number.isFinite(shift)) { this.warn('유한하지 않은 색상각 변화량: 0으로 복구'); continue; }
+        if (!shift) continue;
+        const offset = pixel*4;
+        source.set(shiftHue(source[offset],source[offset+1],source[offset+2],shift),offset);
+      }
       if (cancelled()) throw new Cancelled();
       state.previous = frame.dispose === 2 ? state.pixels.slice() : undefined;
       this.blend(state.pixels,source,frame); state.frame = index; this.reconstructions++;

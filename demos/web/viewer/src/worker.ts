@@ -1,11 +1,12 @@
 import { parsePapng } from '../../../../packages/papng/src/parser';
+import { averageMaskColors } from './mask-colors';
 import { Player } from '../../../../packages/papng/src/player';
 import { Cancelled } from '../../../../packages/papng/src/compositor';
 import { stateBytes } from '../../../../packages/papng/src/cache';
 import type { Command, Event } from './protocol';
 
 const send = (message: Event, transfer: Transferable[] = []) => postMessage(message,{transfer});
-let player: Player | undefined, originalHues: number[] = [], clipId = '', playing = false, epoch = 0;
+let player: Player | undefined, clipId = '', playing = false, epoch = 0;
 let visibleFrame = -1, deadline = 0, remaining = 0, timer: ReturnType<typeof setTimeout> | undefined;
 let queue = Promise.resolve(), budget = 32*1024*1024, hiddenStreak = 0, lastStatus = 0;
 const warnings = new Set<string>();
@@ -15,7 +16,7 @@ function status(force = true) {
   if (!player?.visit || (!force && now-lastStatus < 100)) return;
   lastStatus = now;
   const v = player.visit;
-  send({type:'status',status:{frame:v.frame,visibleFrame,num:v.num,den:v.den,hidden:v.hidden,playing,ended:player.ended,completed:player.completed,visits:player.visits,start:player.interval.start,end:player.interval.end,control:v.effective.control?.type ?? null,recovery:v.effective.recovery,cache:player.compositor.cache.stats(),activeBytes:player.compositor.state?stateBytes(player.compositor.state):0,reconstructions:player.compositor.reconstructions}});
+  send({type:'status',status:{frame:v.frame,visibleFrame,num:v.num,den:v.den,hidden:v.hidden,playing,ended:player.ended,completed:player.completed,visits:player.visits,start:player.interval.start,end:player.interval.end,control:v.effective.control?.type ?? null,recovery:v.effective.recovery,cache:player.compositor.cache.stats(),activeBytes:player.compositor.state?stateBytes(player.compositor.state):0,maskBytes:player.compositor.masks.bytes,reconstructions:player.compositor.reconstructions}});
 }
 function show() {
   if (!player?.visit || player.visit.hidden || !player.compositor.state) return;
@@ -67,8 +68,16 @@ async function handle(command: Command, token: number) {
     player = undefined; warnings.clear(); hiddenStreak = 0; send({type:'busy',busy:true});
     if (command.buffer.byteLength > 128*1024*1024) throw new Error('파일이 이 데모의 입력 예산 128 MiB를 넘었습니다. PAPNG 포맷 한도가 아닙니다.');
     const doc = await parsePapng(new Uint8Array(command.buffer)); if (cancel()) return;
-    player = new Player(doc,budget,warn); clipId = ''; originalHues = doc.masks.map(m=>m.hue);
-    send({type:'info',info:{name:command.name,width:doc.width,height:doc.height,frames:doc.frames.length,bytes:doc.byteLength,masks:doc.masks.map(m=>({...m})),clips:doc.clips,groups:doc.groups,hints:doc.hints,distributions:doc.distributions.map(d=>({kind:d.kind,valid:d.valid})),controls:[...doc.controls.values()].flat().map(c=>({frame:c.frame,type:c.type}))}});
+    player = new Player(doc,budget,warn); clipId = '';
+    let lastProgress = -Infinity;
+    const maskColors = await averageMaskColors(doc,player.compositor.masks,cancel,(done,total) => {
+      const now = performance.now();
+      if (!total || (done !== total && now-lastProgress < 100)) return;
+      lastProgress = now;
+      send({type:'busy',busy:true,message:`원본 마스크 평균색 계산 중… ${done} / ${total} 프레임`});
+    });
+    if (cancel()) return;
+    send({type:'info',info:{name:command.name,width:doc.width,height:doc.height,frames:doc.frames.length,bytes:doc.byteLength,maskCount:doc.maskCount,maskColors,maskMaps:doc.maskData.length,maskBindings:doc.frameMasks.size,clips:doc.clips,groups:doc.groups,hints:doc.hints,distributions:doc.distributions.map(d=>({kind:d.kind,valid:d.valid})),controls:[...doc.controls.values()].flat().map(c=>({frame:c.frame,type:c.type}))}});
     for (const message of doc.warnings) warn(message);
     clearImage(); await player.start(undefined,cancel); await firstVisible(token); send({type:'busy',busy:false}); return;
   }
@@ -81,11 +90,11 @@ async function handle(command: Command, token: number) {
   if (command.type === 'budget') { budget = command.bytes; player.compositor.cache.setBudget(budget); status(); return; }
   send({type:'busy',busy:true});
   if (command.type === 'hue') {
-    if (command.hues.length !== player.doc.masks.length || command.hues.some(h => !Number.isInteger(h) || h < 0 || h > 65535)) throw new Error('잘못된 마스크 색상각 배열');
-    player.doc.masks.forEach((mask,index) => mask.hue = command.hues[index]);
-    clearImage(); await player.setHue(command.index,command.hue,clipId,cancel);
+    if (command.offsets.length !== player.doc.maskCount || command.offsets.some(h => !Number.isFinite(h))) throw new Error('잘못된 색상각 변화량 배열');
+    player.compositor.hueOffsets.set(command.offsets);
+    clearImage(); await player.setHueOffset(command.index,command.offset,clipId,cancel);
   }
-  if (command.type === 'reset-hues') { player.doc.masks.forEach((m,i)=>m.hue=originalHues[i]); player.compositor.invalidate(); clearImage(); await player.start(clipId,cancel); }
+  if (command.type === 'reset-hues') { player.compositor.hueOffsets.fill(0); player.compositor.invalidate(); clearImage(); await player.start(clipId,cancel); }
   if (command.type === 'clip' || command.type === 'restart') { if (command.type === 'clip') clipId = command.id; clearImage(); await player.start(clipId,cancel); }
   if (command.type === 'seek') { await player.seek(command.frame,cancel); }
   if (command.type === 'step') { if (player.ended) { clearImage(); await player.start(clipId,cancel); } else await player.advance(cancel); }

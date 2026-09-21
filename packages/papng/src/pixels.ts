@@ -1,5 +1,5 @@
 import { inflate } from './binary';
-import { assert, type Frame, type Mask, type Warn } from './types';
+import { assert, type Frame } from './types';
 
 export const ADAM7 = [[0,0,8,8], [4,0,8,8], [0,4,4,8], [2,0,4,4], [0,2,2,4], [1,0,2,2], [0,1,1,2]];
 export function hueRgb(hue: number, saturation = 255, value = 255): [number, number, number] {
@@ -12,7 +12,7 @@ function paeth(a: number, b: number, c: number) {
   const p = a + b - c, pa = Math.abs(p-a), pb = Math.abs(p-b), pc = Math.abs(p-c);
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 }
-export async function decodeFrame(frame: Frame, interlace: number, masks: Mask[], warn: Warn): Promise<Uint8ClampedArray> {
+export async function decodeFrame(frame: Frame, interlace: number): Promise<Uint8ClampedArray> {
   const passes = interlace ? ADAM7 : [[0,0,1,1]];
   const dimensions = passes.map(([x,y,dx,dy]) => [Math.max(0, Math.ceil((frame.width-x)/dx)), Math.max(0, Math.ceil((frame.height-y)/dy))]);
   const expected = dimensions.reduce((n, [w,h]) => n + (w && h ? h * (w * 4 + 1) : 0), 0);
@@ -36,12 +36,19 @@ export async function decodeFrame(frame: Frame, interlace: number, masks: Mask[]
       previous = line;
     }
   }
-  for (let i = 0; i < pixels.length; i += 4) {
-    if (pixels[i+3] !== 1) continue;
-    const mask = masks[pixels[i]];
-    if (!mask) { warn('없는 마스크 인덱스: 투명 소스 픽셀로 복구'); pixels.fill(0, i, i+4); continue; }
-    const rgb = hueRgb(mask.hue, pixels[i+1], pixels[i+2]);
-    pixels.set([...rgb, mask.alpha], i);
-  }
   return pixels;
+}
+
+// Compute HSV from the original RGB at full floating-point precision. No S8/V8
+// serialization or quantization occurs. Identity edits bypass conversion entirely.
+export function shiftHue(r: number, g: number, b: number, degrees: number): [number, number, number] {
+  const delta = ((degrees % 360) + 360) % 360;
+  if (delta === 0) return [r,g,b];
+  const high = Math.max(r,g,b), low = Math.min(r,g,b), chroma = high-low;
+  if (chroma === 0) return [r,g,b];
+  let sector = high === r ? (g-b)/chroma : high === g ? (b-r)/chroma+2 : (r-g)/chroma+4;
+  sector = ((sector+delta/60)%6+6)%6;
+  const x = chroma*(1-Math.abs(sector%2-1));
+  const channels = [[chroma,x,0],[x,chroma,0],[0,chroma,x],[0,x,chroma],[x,0,chroma],[chroma,0,x]][Math.floor(sector)];
+  return channels.map(c => Math.max(0,Math.min(255,Math.floor(c+low+0.5)))) as [number,number,number];
 }

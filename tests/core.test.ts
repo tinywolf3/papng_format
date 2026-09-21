@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { encodePapng, extension, pngChunk, Writer, type SampleDefinition } from '../tools/sample-writer';
 import { parsePapng } from '../packages/papng/src/parser';
-import { decodeFrame, hueRgb } from '../packages/papng/src/pixels';
+import { decodeFrame, shiftHue } from '../packages/papng/src/pixels';
 import { Player } from '../packages/papng/src/player';
 import { Compositor } from '../packages/papng/src/compositor';
 import { StateCache, stateBytes } from '../packages/papng/src/cache';
@@ -41,14 +41,18 @@ test('published samples cover every v1 control, distribution, hint and optional 
 for(const interlace of [false,true])for(let filter=0;filter<=4;filter++)test(`raw RGBA preservation: filter ${filter}, Adam7 ${interlace}`,async()=>{
   const width=11,height=9,pixels=Uint8Array.from({length:width*height*4},(_,i)=>i%4===3?255:(i*31+17)%256);
   const doc=await load({width,height,interlace,frames:[{rgba:pixels,filter}]});
-  assert.deepEqual(await decodeFrame(doc.frames[0],doc.interlace,[],silent),new Uint8ClampedArray(pixels));
+  assert.deepEqual(await decodeFrame(doc.frames[0],doc.interlace),new Uint8ClampedArray(pixels));
 });
 
-test('mask markers restore H16/S8/V8 before compositing; palette alpha 1 is not a second marker',async()=>{
-  const doc=await load({width:4,height:1,masks:[{hue:32768,alpha:1},{hue:0,alpha:128}],frames:[{rgba:rgba(0,255,255,1,1,128,200,1,8,255,255,1,17,29,31,2)}]});
-  const {warn,warnings}=diagnostics(),decoded=await decodeFrame(doc.frames[0],0,doc.masks,warn);
-  assert.deepEqual([...decoded],[0,255,255,1,...hueRgb(0,128,200),128,0,0,0,0,17,29,31,2]);assert.equal(warnings.length,1);
-  assert.deepEqual(hueRgb(0),[255,0,0]);assert.deepEqual(hueRgb(32768),[0,255,255]);assert.deepEqual(hueRgb(65535),[255,0,0]);
+test('original RGBA including alpha 0 and 1 survives a zero-offset mask exactly',async()=>{
+  const original=rgba(240,80,60,0,240,80,60,1,60,80,240,128,17,29,31,2);
+  const doc=await load({width:4,height:1,maskCount:1,frames:[{rgba:original,mask:Uint16Array.from([0x8000,0x8000,0x8000,0])}]});
+  const c=new Compositor(doc,100,silent);
+  assert.deepEqual([...(await c.seek(0)).pixels],[...original]);
+  c.hueOffsets[0]=180;c.invalidate();const shifted=(await c.seek(0)).pixels;
+  assert.deepEqual([...shifted].filter((_,i)=>i%4===3),[0,1,128,2]);
+  assert.deepEqual([...shifted.slice(0,3)],shiftHue(240,80,60,180));
+  assert.deepEqual([...shifted.slice(12)],[17,29,31,2]);
 });
 
 test('poster outside animation is never used as its initial canvas or frame number',async()=>{
@@ -122,9 +126,9 @@ test('clip starts reconstruct prefix, restrict targets and invalidate resolution
 });
 
 test('changing hue discards palette-dependent snapshots and reconstructs from frame zero',async()=>{
-  const doc=await load(simple({masks:[{hue:0,alpha:255}],frames:[{rgba:rgba(0,255,255,1)},{rgba:clear,blend:1}]}));
+  const doc=await load(simple({maskCount:1,frames:[{rgba:red,mask:Uint16Array.from([0x8000])},{rgba:clear,blend:1}]}));
   const p=new Player(doc,100,silent);await p.start();await p.advance();assert.deepEqual([...p.compositor.state!.pixels],[...red]);
-  await p.setHue(0,32768);assert.equal(p.visit?.frame,0);assert.deepEqual([...p.compositor.state!.pixels],[0,255,255,255]);
+  await p.setHueOffset(0,180);assert.equal(p.visit?.frame,0);assert.deepEqual([...p.compositor.state!.pixels],[0,255,255,255]);
   await p.advance();assert.deepEqual([...p.compositor.state!.pixels],[0,255,255,255]);
 });
 
@@ -166,13 +170,13 @@ test('malformed definitions retain distribution index slots and recover only aff
   const p=new Player(doc,0,silent);await p.start();assert.equal(p.visit?.ms,123);assert.equal(p.visit?.effective.recovery,false);
 });
 
-test('bad paEX CRC disables extensions but keeps zero-time semantics; truncated body keeps a complete palette',async()=>{
-  const definition=simple({masks:[{hue:0,alpha:255}],frames:[{rgba:rgba(0,255,255,1),num:0}]});
+test('bad paEX CRC keeps original pixels and zero timing; truncated body keeps a complete mask count',async()=>{
+  const definition=simple({maskCount:1,frames:[{rgba:rgba(255,0,0,1),mask:Uint16Array.from([0x8000]),num:0}]});
   const bytes=encodePapng(definition),r=new Reader(bytes);r.offset=8;
   while(r.remaining){const n=r.u32(),name=String.fromCharCode(...r.bytes(4));r.bytes(n);const offset=r.offset;r.u32();if(name==='paEX'){bytes[offset]^=1;break;}}
-  const doc=await parsePapng(bytes);assert.equal(doc.masks.length,0);assert.ok(doc.warnings.length);const p=new Player(doc,0,silent);await p.start();assert.equal(p.visit?.hidden,true);assert.deepEqual([...p.compositor.state!.pixels],[...clear]);
-  const truncated=rewrite(encodePapng(definition),(name,data)=>name==='paEX'?extension(definition).slice(0,61):data);
-  const restored=await parsePapng(truncated);assert.equal(restored.masks.length,1);assert.ok(restored.warnings.length);
+  const doc=await parsePapng(bytes);assert.equal(doc.maskCount,0);assert.ok(doc.warnings.length);const p=new Player(doc,0,silent);await p.start();assert.equal(p.visit?.hidden,true);assert.deepEqual([...p.compositor.state!.pixels],[255,0,0,1]);
+  const truncated=rewrite(encodePapng(definition),(name,data)=>name==='paEX'?extension(definition).slice(0,58):data);
+  const restored=await parsePapng(truncated);assert.equal(restored.maskCount,1);assert.ok(restored.warnings.length);
 });
 
 test('duplicate JSON keys, BOM and duplicate metadata disable optional metadata',async()=>{
@@ -192,5 +196,5 @@ test('malformed container CRC, sequence, unsupported format and incomplete pixel
   const bytes=encodePapng(simple());bytes[bytes.length-1]^=1;await assert.rejects(parsePapng(bytes),/CRC/);
   const noExt=rewrite(encodePapng(simple()),(name,data)=>name==='paEX'?undefined:data);await assert.rejects(parsePapng(noExt),/식별자/);
   const wrongSequence=rewrite(encodePapng(simple()),(name,data)=>name==='fcTL'?concat([new Writer().u32(9).finish(),data.slice(4)]):data);await assert.rejects(parsePapng(wrongSequence),/시퀀스/);
-  const doc=await load(simple());doc.frames[0].width=2;await assert.rejects(decodeFrame(doc.frames[0],0,[],silent),/길이|크기/);
+  const doc=await load(simple());doc.frames[0].width=2;await assert.rejects(decodeFrame(doc.frames[0],0),/길이|크기/);
 });

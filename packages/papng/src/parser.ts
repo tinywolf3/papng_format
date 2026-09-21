@@ -2,21 +2,22 @@ import { Reader, crc32, inflate } from './binary';
 import { assert, diagnostics, type Frame, type Papng } from './types';
 import { parseExtension } from './extensions';
 import { parseMetadata } from './metadata';
+import { parseMaskData } from './masks';
 
 const signature = [137,80,78,71,13,10,26,10], magic = [80,65,80,78,71,0,0,0];
 export async function parsePapng(bytes: Uint8Array): Promise<Papng> {
   const { warnings, warn } = diagnostics();
-  const doc: Papng = { width: 0, height: 0, plays: 0, interlace: 0, frames: [], masks: [], distributions: [{kind:0,valid:true}], controls: new Map(), hints: {}, clips: [], groups: [], warnings, byteLength: bytes.length };
+  const doc: Papng = { width: 0, height: 0, plays: 0, interlace: 0, frames: [], maskCount: 0, maskData: [], frameMasks: new Map(), distributions: [{kind:0,valid:true}], controls: new Map(), hints: {}, clips: [], groups: [], warnings, byteLength: bytes.length };
   assert(signature.every((b,i) => bytes[i] === b), 'PNG 시그니처가 없습니다');
   const r = new Reader(bytes); r.offset = 8;
-  const extensions: { data: Uint8Array; valid: boolean }[] = [], metadata: Uint8Array[] = [];
+  const extensions: { data: Uint8Array; valid: boolean }[] = [], metadata: Uint8Array[] = [], maskChunks: {data:Uint8Array; valid:boolean}[] = [];
   let current: Frame | undefined, count = 0, sequence = 0, idat = false, endedIdat = false, ended = false, currentUsesIdat = false;
   while (r.remaining) {
     const length = r.u32(); assert(length <= 0x7fffffff, 'PNG 청크 길이 범위 오류');
     const start = r.offset, name = String.fromCharCode(...r.bytes(4)), data = r.bytes(length), crc = r.u32();
     assert(/^[A-Za-z]{2}[A-Z][A-Za-z]$/.test(name), 'PNG 청크 이름 오류');
     const valid = crc32(bytes.subarray(start, start+length+4)) === crc;
-    assert(valid || name === 'paEX' || name === 'iTXt', `${name} CRC 오류`);
+    assert(valid || name === 'paEX' || name === 'paMD' || name === 'iTXt', `${name} CRC 오류`);
     assert(doc.width || name === 'IHDR', 'IHDR이 첫 청크가 아닙니다');
     if (idat && name !== 'IDAT') endedIdat = true;
     const p = new Reader(data);
@@ -46,6 +47,8 @@ export async function parsePapng(bytes: Uint8Array): Promise<Papng> {
       assert(idat && current && !currentUsesIdat && length >= 4 && p.u32() === sequence++, 'fdAT 시퀀스 또는 위치 오류'); current.compressed.push(p.bytes(p.remaining));
     } else if (name === 'paEX') {
       extensions.push({ data, valid: valid && !idat });
+    } else if (name === 'paMD') {
+      maskChunks.push({data,valid:valid && !idat && extensions.length === 1});
     } else if (name === 'iTXt') {
       if (valid) metadata.push(data); else warn('iTXt CRC 오류: 메타데이터 무시');
     } else if (name === 'IEND') {
@@ -60,11 +63,14 @@ export async function parsePapng(bytes: Uint8Array): Promise<Papng> {
   assert(recognized.length > 0, 'PAPNG 식별자가 없습니다. 이 뷰어는 일반 PNG 가져오기 도구가 아닙니다.');
   const ext = recognized[0];
   assert(ext.data.length >= 10 && new DataView(ext.data.buffer,ext.data.byteOffset).getUint16(8) === 1, '지원하지 않는 PAPNG 주 버전');
+  let extensionUsable = false;
   if (extensions.length !== 1 || !ext.valid) warn('paEX 중복·CRC·위치 오류: 확장 비활성화');
   else {
-    try { parseExtension(ext.data,doc,warn); }
-    catch (error) { doc.masks = []; doc.controls.clear(); doc.distributions = [{kind:0,valid:true}]; doc.hints = {}; warn(`확장 비활성화: ${String(error)}`); }
+    try { parseExtension(ext.data,doc,warn); extensionUsable = true; }
+    catch (error) { doc.maskCount = 0; doc.controls.clear(); doc.distributions = [{kind:0,valid:true}]; doc.hints = {}; warn(`확장 비활성화: ${String(error)}`); }
   }
+  if (maskChunks.length > 1 || maskChunks.some(c => !c.valid)) warn('paMD 중복·CRC·위치 오류: 원본 RGBA 사용');
+  else if (maskChunks.length === 1 && extensionUsable) parseMaskData(maskChunks[0].data,doc,warn);
   let seenMetadata = false;
   for (const bytes of metadata) {
     const zero = bytes.indexOf(0);

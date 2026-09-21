@@ -1,7 +1,7 @@
 import { deflateSync } from 'node:zlib';
 import { concat, crc32 } from '../packages/papng/src/binary';
 import { ADAM7 } from '../packages/papng/src/pixels';
-import type { Mask } from '../packages/papng/src/types';
+import { assert } from '../packages/papng/src/types';
 
 export class Writer {
   values: number[] = [];
@@ -12,9 +12,9 @@ export class Writer {
   u32(n: number) { return this.u16(n >>> 16).u16(n); }
   finish() { return Uint8Array.from(this.values); }
 }
-export interface SampleFrame { rgba: Uint8Array; width?: number; height?: number; x?: number; y?: number; num?: number; den?: number; dispose?: number; blend?: number; filter?: number }
+export interface SampleFrame { rgba: Uint8Array; mask?: Uint16Array; width?: number; height?: number; x?: number; y?: number; num?: number; den?: number; dispose?: number; blend?: number; filter?: number }
 export interface SampleDefinition {
-  width: number; height: number; frames: SampleFrame[]; plays?: number; masks?: Mask[];
+  width: number; height: number; frames: SampleFrame[]; plays?: number; maskCount?: number;
   distributions?: {kind:number; items?:[number,number][]; parameters?:Uint8Array}[];
   controls?: {frame:number; type:number; values:number[]; payload?:Uint8Array}[];
   hints?: {display?:[number,number];bbox?:[number,number,number,number];scale?:number;pivot?:[number,number]};
@@ -28,7 +28,7 @@ export function extension(d: SampleDefinition) {
   const w = new Writer().bytes([80,65,80,78,71,0,0,0]).u16(1).u16(0).u32(56), h = d.hints ?? {};
   w.u32((h.display?1:0)|(h.bbox?2:0)|(h.scale?4:0)|(h.pivot?8:0));
   for (const n of [...h.display ?? [0,0],...h.bbox ?? [0,0,0,0],h.scale ?? 0,...h.pivot ?? [0,0]]) w.u32(n);
-  w.u16(d.masks?.length ?? 0); for (const m of d.masks ?? []) w.u16(m.hue).u8(m.alpha);
+  w.u16(d.maskCount ?? 0);
   w.u8(d.distributions?.length ?? 0);
   for (const definition of d.distributions ?? []) {
     const p = new Writer();
@@ -65,8 +65,37 @@ function scanlines(rgba: Uint8Array, width: number, height: number, interlace = 
   }
   return deflateSync(concat(output),{level:9});
 }
+export function maskExtension(d: SampleDefinition): Uint8Array | undefined {
+  const maps: {width:number;height:number;data:Uint8Array}[] = [];
+  const ids = new Map<string,number>(), bindings: [number,number][] = [];
+  d.frames.forEach((frame,index) => {
+    if (!frame.mask) return;
+    const width = frame.width ?? d.width, height = frame.height ?? d.height;
+    assert(frame.mask.length === width*height, 'Mask array dimensions do not match the source frame');
+    const raw = new Writer(); let active = false;
+    for (const word of frame.mask) {
+      if (word & 0x8000) {
+        assert((word & 0x7fff) < (d.maskCount ?? 0), 'Mask index outside mask_count');
+        active = true; raw.u16(word);
+      } else raw.u16(0);
+    }
+    if (!active) return;
+    const bytes = raw.finish(), key = `${width}x${height}:${Buffer.from(bytes).toString('base64')}`;
+    let id = ids.get(key);
+    if (id === undefined) { id = maps.length; ids.set(key,id); maps.push({width,height,data:deflateSync(bytes,{level:9})}); }
+    bindings.push([index,id]);
+  });
+  if (!bindings.length) return;
+  const out = new Writer().u32(maps.length);
+  for (const map of maps) out.u32(map.width).u32(map.height).u32(map.data.length).bytes(map.data);
+  out.u32(bindings.length);
+  for (const [frame,id] of bindings) out.u32(frame).u32(id);
+  return out.finish();
+}
 export function encodePapng(d: SampleDefinition) {
   const parts = [Uint8Array.from([137,80,78,71,13,10,26,10]),pngChunk('IHDR',new Writer().u32(d.width).u32(d.height).bytes([8,6,0,0,d.interlace?1:0]).finish()),pngChunk('acTL',new Writer().u32(d.frames.length).u32(d.plays ?? 0).finish()),pngChunk('paEX',extension(d))];
+  const maskData = maskExtension(d);
+  if (maskData) parts.push(pngChunk('paMD',maskData));
   if (d.metadata || d.metadataText) {
     const json = new TextEncoder().encode(d.metadataText ?? JSON.stringify(d.metadata));
     parts.push(pngChunk('iTXt',concat([new TextEncoder().encode('PAPNG.Metadata\0'),Uint8Array.from([d.compressedMetadata?1:0,0,0,0]),d.compressedMetadata?deflateSync(json):json])));

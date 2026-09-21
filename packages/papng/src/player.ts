@@ -44,9 +44,10 @@ export class Player {
     }
     return this.seek(next.frame,cancel);
   }
-  async setHue(index: number, hue: number, clipId?: string, cancel?: Cancel) {
-    assert(this.doc.masks[index] && Number.isInteger(hue) && hue >= 0 && hue < 65536, '마스크 색상각 범위 오류');
-    this.doc.masks[index].hue = hue; this.compositor.invalidate();
+  async setHueOffset(index: number, offset: number, clipId?: string, cancel?: Cancel) {
+    assert(Number.isInteger(index) && index >= 0 && index < this.doc.maskCount, '마스크 인덱스 오류');
+    if (!Number.isFinite(offset)) { this.warn('유한하지 않은 색상각 변화량: 0으로 복구'); offset = 0; }
+    this.compositor.hueOffsets[index] = offset; this.compositor.invalidate();
     return this.start(clipId,cancel);
   }
 }

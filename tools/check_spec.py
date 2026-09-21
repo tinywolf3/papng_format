@@ -93,6 +93,15 @@ def check_examples(text: str) -> None:
     require(struct.unpack(">HHI", extension[8:16]) == (1,0,56), "Version/header size")
     require(extension[16:] == bytes(47), "Minimal hint/count values")
 
+    masks = vector(text, "shared-mask-data")
+    data_count, width, height, compressed_size = struct.unpack(">IIII", masks[:16])
+    require((data_count, width, height) == (1,2,1), "Shared mask descriptor")
+    raw = zlib.decompress(masks[16:16+compressed_size])
+    require(raw == bytes.fromhex("80000000") and len(raw) == 2*width*height, "16-bit row-major words")
+    require(struct.unpack(">IIIII", masks[16+compressed_size:]) == (2,0,0,1,0), "Shared frame bindings")
+    require((0x8000 & 0x7FFF) == 0 and (0xFFFF & 0x7FFF) == 32767, "Mask index bounds")
+    require(struct.pack(">H",32768) == bytes.fromhex("8000"), "Maximum mask count")
+
     # Form a complete APNG around the published data, then verify chunk
     # framing, CRCs, sequence metadata, and the decompressed scanline.
     rgba_scanline = bytes([0, 255, 0, 0, 255])
@@ -117,7 +126,7 @@ def check_examples(text: str) -> None:
         offset += size + 12
     require(offset == len(container) and parsed == parts, "PNG complete parse")
     require(zlib.decompress(dict(parsed)[b"IDAT"]) == rgba_scanline, "PNG scanline")
-    print(f"PASS: 3 published byte vectors; {len(container)}-byte APNG assembly and CRCs.")
+    print(f"PASS: 4 published byte vectors; {len(container)}-byte APNG assembly and CRCs.")
 
 
 def check_semantics(text: str) -> None:
@@ -136,15 +145,17 @@ def check_semantics(text: str) -> None:
     require(normalize(0,0) == (1,100), "Both zero import")
     require(normalize(1,65535) == (1,65535), "Positive sub-millisecond delay")
     require(Fraction(1,65535) > 0, "Small positive time is not hidden")
-    bound = Fraction(1,2) + Fraction(765,65536)
-    require(bound < Fraction(512,1000), "Quantization bound")
-    # Exact sector conversion for the two mask restoration examples.
-    for hue, expected in [(0, (255,0,0)), (32768, (0,255,255))]:
-        q = Fraction(6 * hue, 65536)
+    # Runtime hue offsets do not quantize H/S/V or change the alpha byte.
+    for offset, expected in [(0, (255,0,0)), (180, (0,255,255)), (-120, (0,0,255))]:
+        q = (Fraction(offset,60) % 6)
         x = 1 - abs(q % 2 - 1)
         triples = [(1,x,0),(x,1,0),(0,1,x),(0,x,1),(x,0,1),(1,0,x)]
         actual = tuple(int(Fraction(c) * 255 + Fraction(1,2)) for c in triples[int(q)])
-        require(actual == expected, "Mask restoration example")
+        require(actual == expected, "Hue offset example")
+    require("MaskEntry" not in text and "mask_palette_count" not in text, "Obsolete mask layout")
+    require("uint16 mask_count" in text and "uint32 mask_data_count" in text, "Mask layout")
+    require("h_out = (h + hue_offset_degrees / 360) mod 1" in text, "Hue offset rule")
+    require("**Document revision:** 1" in text or "**문서 개정:** 1" in text, "Document revision must remain 1")
     json_blocks = re.findall(r"\x60{3}json\s*([\s\S]*?)\x60{3}", text)
     require(len(json_blocks) == 1, "One metadata example expected")
     metadata = json.loads(json_blocks[0])
@@ -222,4 +233,6 @@ if __name__ == "__main__":
         check_semantics(text)
     check_editions(*(documents[source] for source in SOURCES))
     documents[ROOT / "README.md"] = (ROOT / "README.md").read_text(encoding="utf-8")
+    for path in (ROOT / "samples/README.md", ROOT / "demos/web/viewer/README.md"):
+        documents[path] = path.read_text(encoding="utf-8")
     check_links(documents)
