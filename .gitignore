@@ -1,0 +1,138 @@
+# Shared rules for nested web and engine projects.
+# Keep source assets, package lockfiles, *.d.ts, *.uid, *.import sidecars,
+# export_presets.cfg, *.meta, *.csproj, *.sln, and Unreal Build/ configuration.
+# Do not ignore build/ globally: case-insensitive Git also matches Unreal Build/.
+# Extend these rules in project-local .gitignore files where necessary.
+
+# OS and user-specific editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vs/
+.idea/
+*.suo
+*.user
+*.userprefs
+*.DotSettings.user
+*.VC.db
+*.VC.opendb
+*.swp
+*.swo
+*~
+
+# Local environment files; keep shareable examples
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.*.example
+!.env.*.sample
+!.env.*.template
+
+# Logs and generic disposable output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+out/
+Builds/
+coverage/
+.nyc_output/
+*.lcov
+
+# Web / Node.js / TypeScript
+node_modules/
+bower_components/
+jspm_packages/
+web_modules/
+.npm/
+.pnpm-store/
+**/.yarn/cache/
+**/.yarn/unplugged/
+**/.yarn/install-state.gz
+**/.yarn/build-state.yml
+.pnp.*
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Web framework and bundler caches
+.cache/
+.parcel-cache/
+.vite/
+.next/
+.nuxt/
+.output/
+.svelte-kit/
+.astro/
+.turbo/
+**/.angular/cache/
+**/.vitepress/cache/
+**/.vuepress/.cache/
+**/.vuepress/.temp/
+vite.config.*.timestamp-*
+playwright-report/
+test-results/
+blob-report/
+
+# Godot: imported data and .NET caches, not resource sidecar files
+.godot/
+.import/
+.mono/
+export_credentials.cfg
+export.cfg
+~*.dll
+mono_crash.*
+
+# Unity: generated project directories
+.utmp/
+Library/
+Temp/
+Obj/
+Logs/
+UserSettings/
+MemoryCaptures/
+Recordings/
+ExportedObj/
+UIElementsSchema/
+.consulo/
+.gradle/
+*.unityproj
+*.booproj
+*.pidb
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+*.blend1
+*.blend1.meta
+crashlytics-build.properties
+
+# Unity: generated asset data
+**/Assets/Plugins/Editor/JetBrains*
+**/Assets/StreamingAssets/aa/
+**/Assets/AddressableAssetsData/link.xml*
+**/Assets/AddressableAssetsData/**/addressables_content_state.bin*
+**/Assets/Addressables_Temp*
+**/Assets/InitTestScene*.unity*
+**/Assets/SceneDependencyCache*
+**/Assets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db*
+**/Assets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers*
+
+# Unreal Engine: regenerated project and plugin data
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+*_BuiltData.uasset
+
+# Python documentation tools
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
