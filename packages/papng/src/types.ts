@@ -16,7 +16,7 @@ export interface Papng {
   width: number; height: number; plays: number; interlace: number;
   frames: Frame[]; maskCount: number; maskData: MaskData[]; frameMasks: Map<number, number>; distributions: Distribution[];
   controls: Map<number, Control[]>; clips: Clip[]; groups: MaskGroup[]; sockets?: Sockets;
-  hints: Hints; warnings: string[]; byteLength: number;
+  metadataText?: string; hints: Hints; warnings: string[]; byteLength: number;
 }
 export type Warn = (message: string) => void;
 export function diagnostics(): { warnings: string[]; warn: Warn } {

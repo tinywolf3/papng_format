@@ -75,7 +75,7 @@ export async function parsePapng(bytes: Uint8Array): Promise<Papng> {
   for (const bytes of metadata) {
     const zero = bytes.indexOf(0);
     if (zero < 0 || new TextDecoder().decode(bytes.subarray(0,zero)) !== 'PAPNG.Metadata') continue;
-    if (seenMetadata) { doc.clips = []; doc.groups = []; doc.sockets = undefined; warn('중복 PAPNG.Metadata: 메타데이터 비활성화'); break; }
+    if (seenMetadata) { doc.clips = []; doc.groups = []; doc.sockets = undefined; doc.metadataText = undefined; warn('중복 PAPNG.Metadata: 메타데이터 비활성화'); break; }
     seenMetadata = true;
     try {
       const p = new Reader(bytes.subarray(zero+1)), compression = p.u8(), method = p.u8();

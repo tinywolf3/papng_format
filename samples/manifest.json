@@ -80,6 +80,7 @@
       "partial-frames",
       "interlace",
       "compressed-metadata",
+      "json5",
       "backward"
     ],
     "frames": 3,
@@ -120,6 +121,8 @@
     "title": "소켓 친구",
     "subtitle": "손과 머리 소켓 · 회전하는 별빛 지팡이",
     "features": [
+      "json5",
+      "developer-notes",
       "sockets",
       "rotation",
       "sparse-poses",

@@ -1,3 +1,4 @@
+import JSON5 from 'json5';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { encodePapng, type SampleDefinition } from './sample-writer';
@@ -40,7 +41,7 @@ samples.push({file:'hidden-growth.papng',title:'보이지 않는 준비',subtitl
 const backdrop=art(16,16);backdrop.rect(2,3,12,10,painted(0,125));
 const glass=art(7,7);glass.rect(0,0,7,7,painted(3));glass.rect(2,2,3,3,painted(2,255));
 const dot=art(2,2);dot.rect(0,0,2,2,painted(1));
-samples.push({file:'restore-previous.papng',title:'유리와 잔상',subtitle:'반투명 OVER와 PREVIOUS 상태 복원',features:['PREVIOUS','OVER','partial-frames','interlace','compressed-metadata','backward'],definition:{width:16,height:16,maskCount:4,interlace:true,compressedMetadata:true,frames:[{rgba:backdrop.rgba,mask:backdrop.mask,num:4,den:10},{rgba:glass.rgba,mask:glass.mask,width:7,height:7,x:5,y:5,num:7,den:10,blend:1,dispose:2},{rgba:dot.rgba,mask:dot.mask,width:2,height:2,x:3,y:4,num:6,den:10,blend:1}],controls:[{frame:2,type:2,values:[-1]}],metadata:{schema_version:1,mask_groups:[{id:'glass',name:'반투명 유리',palette_indices:[3]}]},hints:{scale:15}}});
+samples.push({file:'restore-previous.papng',title:'유리와 잔상',subtitle:'반투명 OVER와 PREVIOUS 상태 복원',features:['PREVIOUS','OVER','partial-frames','interlace','compressed-metadata','json5','backward'],definition:{width:16,height:16,maskCount:4,interlace:true,compressedMetadata:true,frames:[{rgba:backdrop.rgba,mask:backdrop.mask,num:4,den:10},{rgba:glass.rgba,mask:glass.mask,width:7,height:7,x:5,y:5,num:7,den:10,blend:1,dispose:2},{rgba:dot.rgba,mask:dot.mask,width:2,height:2,x:3,y:4,num:6,den:10,blend:1}],controls:[{frame:2,type:2,values:[-1]}],metadata:{schema_version:1,mask_groups:[{id:'glass',name:'반투명 유리',palette_indices:[3]}]},hints:{scale:15}}});
 samples.push({file:'300-frame-spectrum.papng',title:'300개의 작은 순간',subtitle:'1 × 1 캔버스 · 300프레임의 색상 변화',features:['1x1','300-frames','ordinary-rgba','finite-plays','empty-palettes'],definition:{width:1,height:1,plays:1,frames:Array.from({length:300},(_,i)=>({rgba:Uint8Array.from([Math.round(127+127*Math.sin(i/47)),Math.round(127+127*Math.sin(i/47+2)),Math.round(127+127*Math.sin(i/47+4)),255]),num:1,den:100})),hints:{scale:128}}});
 const ribbons = art(28,14);
 const alphas = [0,1,32,64,128,192,255];
@@ -62,7 +63,7 @@ const socketFrames = handPoses.map(([x,y],i) => {
   a.rect(x-2,y-2,4,4,painted(0,205));
   return {rgba:a.rgba,mask:a.mask,num:1,den:2};
 });
-samples.push({file:'socket-buddy.papng',title:'소켓 친구',subtitle:'손과 머리 소켓 · 회전하는 별빛 지팡이',features:['sockets','rotation','sparse-poses','pivot-attachment','independent-animation'],attachment:{file:'socket-wand.papng',socket:'right_hand'},definition:{width:48,height:40,maskCount:1,frames:socketFrames,hints:{scale:7,pivot:[21,35]},metadata:{schema_version:1,clips:[{id:'raised',name:'손 들기 · 이전 소켓 상속',start_frame:3,end_frame:5,play_count:0}],sockets:{definitions:[{name:'right_hand'},{name:'head'}],frames:[{frame_index:0,positions:[[29,27],[21,12,-10]]},{frame_index:2,positions:[[30,25,-35],[21,11,12.5]]},{frame_index:4,positions:[[29,27],[21,12]]}]}}}});
+samples.push({file:'socket-buddy.papng',title:'소켓 친구',subtitle:'손과 머리 소켓 · 회전하는 별빛 지팡이',features:['json5','developer-notes','sockets','rotation','sparse-poses','pivot-attachment','independent-animation'],attachment:{file:'socket-wand.papng',socket:'right_hand'},definition:{width:48,height:40,maskCount:1,frames:socketFrames,hints:{scale:7,pivot:[21,35]},metadata:{schema_version:1,clips:[{id:'raised',name:'손 들기 · 이전 소켓 상속',start_frame:3,end_frame:5,play_count:0}],sockets:{definitions:[{name:'right_hand'},{name:'head'}],frames:[{frame_index:0,positions:[[29,27],[21,12,-10]]},{frame_index:2,positions:[[30,25,-35],[21,11,12.5]]},{frame_index:4,positions:[[29,27],[21,12]]}]}}}});
 samples.push({file:'socket-wand.papng',title:'별빛 지팡이',subtitle:'부속 PAPNG · 손잡이 pivot · 독립적인 반짝임',features:['attachment-resource','pivot','independent-animation','per-pixel-alpha'],definition:{width:10,height:20,maskCount:1,frames:Array.from({length:4},(_,i)=>{
   const a=art(10,20);
   a.rect(4,8,2,12,[124,89,64,255]); a.rect(3,15,4,3,[238,184,78,255]);
@@ -94,7 +95,19 @@ for (const sample of samples) {
   });
   sample.definition.metadata = {...metadata,mask_groups:groups};
 }
+// These two resources demonstrate JSON5 in plain and compressed iTXt chunks.
+for (const sample of samples.filter(s=>s.file==='socket-buddy.papng'||s.file==='restore-previous.papng')) {
+  const metadata=sample.definition.metadata as Record<string,unknown>;
+  const notes=sample.file==='socket-buddy.papng'
+    ? {purpose:'손 소켓에 부속의 pivot을 맞추는 예제',attachment_hint:'right_hand 또는 head에 지팡이를 연결하세요.'}
+    : {purpose:'반투명 레이어와 PREVIOUS 복원을 확인하는 예제'};
+  sample.definition.metadataText='// PAPNG 개발자 참고: 이 주석은 재생에 영향을 주지 않습니다.\n'
+    +JSON5.stringify({...metadata,developer_notes:notes},null,2)
+      .replace('schema_version: 1,','schema_version: 1, /* PAPNG.Metadata 스키마 */')+'\n';
+}
 await mkdir(directory,{recursive:true});
+const socketSample=samples.find(s=>s.file==='socket-buddy.papng')!;
+await writeFile(`${directory}/socket-buddy-metadata.json5`,socketSample.definition.metadataText!);
 for (const sample of samples) await writeFile(`${directory}/${sample.file}`,encodePapng(sample.definition));
 await writeFile(`${directory}/manifest.json`,JSON.stringify(samples.map(({definition,...sample})=>({...sample,frames:definition.frames.length,width:definition.width,height:definition.height})),null,2)+'\n');
 console.log(`Generated ${samples.length} deterministic PAPNG samples.`);

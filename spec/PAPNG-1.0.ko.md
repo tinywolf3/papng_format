@@ -539,11 +539,17 @@ uint8  distribution_index
 
 ### 10.1 인코딩
 
-선택적 `iTXt`의 키워드는 정확히 `PAPNG.Metadata`여야 합니다(MUST). 텍스트는 바이트 순서 표식(BOM) 없이 [RFC8259](#참고-문헌)를 따르는 UTF-8 JSON 객체입니다. 표준 iTXt 압축을 사용할 수 있습니다(MAY). 언어 태그와 번역된 키워드는 비워 두는 것이 좋습니다(SHOULD).
+선택적 `iTXt`의 키워드는 정확히 `PAPNG.Metadata`여야 합니다(MUST). 텍스트는 바이트 순서 표식(BOM) 없이 [JSON5](#참고-문헌) 1.0.0 문법을 따르는 UTF-8 JSON5 객체입니다. 표준 iTXt 압축을 사용할 수 있습니다(MAY). 언어 태그와 번역된 키워드는 비워 두는 것이 좋습니다(SHOULD).
 
-객체의 멤버 이름은 중복되어서는 안 됩니다(MUST). 리더는 알 수 없는 멤버를 무시해야 합니다(MUST). 인식한 멤버는 지정된 타입을 가져야 하며(MUST), 불리언을 숫자값으로 허용하지 않습니다.
+객체의 멤버 이름은 이스케이프를 해석한 문자열 기준으로 중복되어서는 안 됩니다(MUST). 따옴표 유무나 이스케이프 표기만 다른 같은 이름도 중복입니다. 리더는 알 수 없는 멤버를 무시해야 합니다(MUST). 인식한 멤버는 지정된 타입을 가져야 하며(MUST), 불리언을 숫자값으로 허용하지 않습니다.
 
 최상위 객체에는 정수 `schema_version: 1`이 있어야 합니다(MUST). 선택적 배열 `clips`와 `mask_groups`의 기본값은 빈 배열입니다. 선택적 객체 `sockets`는 10.4절에서 정의합니다. 이 스키마 버전은 바이너리 포맷 버전과 별개입니다.
+
+JSON5의 `//` 및 `/* ... */` 주석, 작은따옴표 문자열, 식별자 형식의 따옴표 없는 키, 후행 쉼표를 사용할 수 있습니다(MAY). 일반 JSON 문법도 유효한 JSON5입니다. 수치 필드는 해석된 값에 이 명세의 타입·범위를 적용해야 합니다(MUST). 정수 필드에는 정수값이 필요하며, 인식한 수치 필드에서 `NaN`과 양·음의 `Infinity`는 유효하지 않습니다.
+
+주석은 개발자를 위한 참고 정보이며 디코딩이나 재생에 영향을 주지 않습니다. `developer_notes`처럼 애플리케이션이 정한 추가 멤버에 구조화된 참고 정보를 넣을 수도 있습니다. 이 이름에 PAPNG 의미를 부여하지 않으며, 리더는 알 수 없는 멤버를 무시합니다. 메타데이터를 코드로 실행해서는 안 됩니다(MUST NOT).
+
+편집기는 주석과 알 수 없는 멤버를 보존하는 것이 좋습니다(SHOULD). 메타데이터를 편집하지 않았다면 원문을 유지하는 것이 좋습니다(SHOULD). 주석은 파싱된 객체의 값이 아니므로, 객체만 다시 직렬화하면 주석이 사라질 수 있습니다.
 
 ### 10.2 애니메이션 클립
 
@@ -583,7 +589,7 @@ uint8  distribution_index
 
 각 `positions`는 `definitions`와 같은 길이여야 하며(MUST), 같은 위치의 소켓에 대응합니다. 모든 소켓의 값을 한 번에 재정의하며, 소켓별 부분 갱신은 허용하지 않습니다. 각 항목은 정확히 `[x, y, r]` 또는 `[x, y]`입니다. 두 원소만 있으면 그 레코드의 `r`은 0입니다. 앞선 회전값을 상속하지 않습니다. `null`이나 빈 항목은 허용하지 않습니다.
 
-`x`, `y`, `r`은 유한한 IEEE 754 binary64 값으로 표현할 수 있는 JSON 숫자여야 합니다(MUST). 소수와 음수를 허용합니다. 좌표 단위는 원본 캔버스의 픽셀입니다. 원점은 왼쪽 위 모서리, +x는 오른쪽, +y는 아래쪽이며 정수 좌표는 픽셀 경계에 놓입니다. 픽셀 중심은 반정수 좌표로 표현할 수 있습니다. 부분 프레임의 `fcTL` 오프셋, 바운딩 박스, 출력 배율 또는 pivot을 좌표에서 빼지 않습니다. 캔버스 밖 좌표도 허용하며 자동으로 자르거나 반올림하지 않습니다.
+`x`, `y`, `r`은 유한한 IEEE 754 binary64 값으로 표현할 수 있는 JSON5 숫자여야 합니다(MUST). 소수와 음수를 허용합니다. 좌표 단위는 원본 캔버스의 픽셀입니다. 원점은 왼쪽 위 모서리, +x는 오른쪽, +y는 아래쪽이며 정수 좌표는 픽셀 경계에 놓입니다. 픽셀 중심은 반정수 좌표로 표현할 수 있습니다. 부분 프레임의 `fcTL` 오프셋, 바운딩 박스, 출력 배율 또는 pivot을 좌표에서 빼지 않습니다. 캔버스 밖 좌표도 허용하며 자동으로 자르거나 반올림하지 않습니다.
 
 `r`은 도 단위이며 **시계 방향이 양수**입니다. 0은 회전 없음이고 음수·소수·360도 범위 밖 값도 허용합니다. 방향을 사용할 때 360으로 모듈로 정규화할 수 있습니다. 회전은 소켓의 방향을 나타내며 자신의 `(x, y)`를 회전시키지 않습니다.
 
@@ -607,62 +613,35 @@ pivot 자체는 회전과 관계없이 항상 소켓의 `(x, y)`에 놓입니다
 
 다음 예제는 참고 사항이며, 최소 8개 프레임과 3개 마스크 슬롯이 있다고 가정합니다.
 
-```json
+```json5
 {
-  "schema_version": 1,
-  "clips": [
-    {
-      "id": "idle",
-      "name": "Idle",
-      "start_frame": 0,
-      "end_frame": 7,
-      "play_count": 0
-    }
+  // Developer notes do not change playback.
+  schema_version: 1,
+  developer_notes: {
+    purpose: 'Idle animation with a hand attachment',
+    attachment_hint: 'Align the accessory pivot to right_hand.',
+  },
+  clips: [
+    { id: 'idle', name: 'Idle', start_frame: 0, end_frame: 7, play_count: 0 },
   ],
-  "mask_groups": [
-    {
-      "id": "hair",
-      "name": "Hair",
-      "palette_indices": [0, 1, 2]
-    }
+  mask_groups: [
+    { id: 'hair', name: 'Hair', palette_indices: [0, 1, 2] },
   ],
-  "sockets": {
-    "definitions": [
-      {
-        "name": "right_hand"
-      },
-      {
-        "name": "head"
-      }
+  sockets: {
+    definitions: [{ name: 'right_hand' }, { name: 'head' }],
+    frames: [
+      /* Every record defines all sockets in definition order.
+         Omitted frame records inherit by frame index. */
+      { frame_index: 0, positions: [[12, 15], [8, 3]] },
+      { frame_index: 3, positions: [[13, 14, 30], [8, 2]] },
+      // Omitting r in an explicit position sets it to zero.
+      { frame_index: 6, positions: [[12, 15], [8, 3]] },
     ],
-    "frames": [
-      {
-        "frame_index": 0,
-        "positions": [
-          [12, 15],
-          [8, 3]
-        ]
-      },
-      {
-        "frame_index": 3,
-        "positions": [
-          [13, 14, 30],
-          [8, 2]
-        ]
-      },
-      {
-        "frame_index": 6,
-        "positions": [
-          [12, 15],
-          [8, 3]
-        ]
-      }
-    ]
-  }
+  },
 }
 ```
 
-잘못된 JSON, 중복된 객체 멤버 또는 지원하지 않는 스키마 버전이면 경고와 함께 이 메타데이터 객체를 비활성화합니다. 개별 클립이나 그룹이 잘못되었으면 관련 없는 유효 항목은 유지하고 해당 항목만 무시하는 것이 좋습니다(SHOULD). ID가 반복되면 첫 번째 유효 항목을 사용하며, 이후 중복은 경고와 함께 무시합니다.
+잘못된 JSON5, 중복된 객체 멤버 또는 지원하지 않는 스키마 버전이면 경고와 함께 이 메타데이터 객체를 비활성화합니다. 개별 클립이나 그룹이 잘못되었으면 관련 없는 유효 항목은 유지하고 해당 항목만 무시하는 것이 좋습니다(SHOULD). ID가 반복되면 첫 번째 유효 항목을 사용하며, 이후 중복은 경고와 함께 무시합니다.
 
 메타데이터가 없거나 무시되었다는 이유로 핵심 이미지 디코딩이나 전체 애니메이션 재생을 막아서는 안 됩니다(MUST NOT).
 
@@ -894,6 +873,6 @@ A.2의 정의는 0–20번 프레임이 있는 애니메이션에서 프레임 1
 - **PNG3:** W3C, *Portable Network Graphics (PNG) Specification (Third Edition)*, 권고안, 2025년 6월 24일. [고정 버전](https://www.w3.org/TR/2025/REC-png-3-20250624/).
 - **RFC2119:** S. Bradner, *Key words for use in RFCs to Indicate Requirement Levels*, BCP 14, 1997년 3월. [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 - **RFC8174:** B. Leiba, *Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words*, BCP 14, 2017년 5월. [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174).
-- **RFC8259:** T. Bray, 편집, *The JavaScript Object Notation (JSON) Data Interchange Format*, 2017년 12월. [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259).
+- **JSON5:** *The JSON5 Data Interchange Format*, 버전 1.0.0, 2018년 3월. [JSON5 명세](https://spec.json5.org/).
 
 - **RFC1950:** P. Deutsch, J-L. Gailly, *ZLIB Compressed Data Format Specification version 3.3*, May 1996. [RFC 1950](https://www.rfc-editor.org/rfc/rfc1950).

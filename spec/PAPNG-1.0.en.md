@@ -539,11 +539,17 @@ A player SHOULD report persistent lack of time progress and remain cancelable. Y
 
 ### 10.1 Encoding
 
-The optional `iTXt` keyword MUST be exactly `PAPNG.Metadata`. The text is a UTF-8 JSON object conforming to [RFC8259](#references), without a byte-order mark. Standard iTXt compression MAY be used. The language tag and translated keyword SHOULD be empty.
+The optional `iTXt` keyword MUST be exactly `PAPNG.Metadata`. The text is a UTF-8 JSON5 object conforming to the grammar of [JSON5](#references) 1.0.0, without a byte-order mark. Standard iTXt compression MAY be used. The language tag and translated keyword SHOULD be empty.
 
-Object member names MUST be unique. Unknown members MUST be ignored by readers. Recognized members MUST have their specified types; booleans are not accepted as numeric values.
+Object member names MUST be unique after decoding escapes. Quoting or escaping the same name differently does not make it distinct. Unknown members MUST be ignored by readers. Recognized members MUST have their specified types; booleans are not accepted as numeric values.
 
 The top-level object MUST contain integer `schema_version: 1`. The optional arrays `clips` and `mask_groups` default to empty. The optional `sockets` object is defined in Section 10.4. This schema version is separate from the binary format version.
+
+JSON5 `//` and `/* ... */` comments, single-quoted strings, unquoted identifier keys, and trailing commas MAY be used. Ordinary JSON syntax is also valid JSON5. Numeric fields MUST satisfy the types and ranges in this specification after parsing. Integer fields require integer values; `NaN` and positive or negative `Infinity` are invalid in recognized numeric fields.
+
+Comments are developer reference information and do not affect decoding or playback. Application-defined additional members, such as `developer_notes`, can contain structured reference information. This name has no PAPNG semantics, and readers ignore unknown members. Metadata MUST NOT be executed as code.
+
+Editors SHOULD preserve comments and unknown members. If metadata has not been edited, editors SHOULD retain its source text. Comments are not values in the parsed object, so serializing only that object can lose comments.
 
 ### 10.2 Animation clips
 
@@ -583,7 +589,7 @@ The optional `sockets` object defines named points and orientations for attachin
 
 Each `positions` array MUST have the same length as `definitions`, with matching array positions. A record redefines every socket at once; partial per-socket updates are not allowed. Each position is exactly `[x, y, r]` or `[x, y]`. With two elements, `r` is 0 for that record; it does not inherit a previous rotation. Nulls and missing entries are not allowed.
 
-`x`, `y`, and `r` MUST be JSON numbers representable as finite IEEE 754 binary64 values. Fractions and negative values are allowed. Coordinates are measured in original canvas pixels. The origin is the top-left corner, +x points right, and +y points down; integer coordinates lie on pixel boundaries. Pixel centers can be expressed with half-integer coordinates. The partial-frame `fcTL` offset, bounding box, display scale, and pivot are not subtracted from these coordinates. Coordinates outside the canvas are allowed and are not automatically clamped or rounded.
+`x`, `y`, and `r` MUST be JSON5 numbers representable as finite IEEE 754 binary64 values. Fractions and negative values are allowed. Coordinates are measured in original canvas pixels. The origin is the top-left corner, +x points right, and +y points down; integer coordinates lie on pixel boundaries. Pixel centers can be expressed with half-integer coordinates. The partial-frame `fcTL` offset, bounding box, display scale, and pivot are not subtracted from these coordinates. Coordinates outside the canvas are allowed and are not automatically clamped or rounded.
 
 `r` is measured in degrees, with **positive values clockwise**. Zero means no rotation; negative, fractional, and out-of-range values are allowed. An implementation can normalize the orientation modulo 360 when using it. Rotation describes the socket orientation and does not rotate its own `(x, y)` position.
 
@@ -607,62 +613,35 @@ The pivot itself always maps to the socket's `(x, y)` regardless of rotation. Th
 
 The following is informative and assumes at least eight frames and three mask slots:
 
-```json
+```json5
 {
-  "schema_version": 1,
-  "clips": [
-    {
-      "id": "idle",
-      "name": "Idle",
-      "start_frame": 0,
-      "end_frame": 7,
-      "play_count": 0
-    }
+  // Developer notes do not change playback.
+  schema_version: 1,
+  developer_notes: {
+    purpose: 'Idle animation with a hand attachment',
+    attachment_hint: 'Align the accessory pivot to right_hand.',
+  },
+  clips: [
+    { id: 'idle', name: 'Idle', start_frame: 0, end_frame: 7, play_count: 0 },
   ],
-  "mask_groups": [
-    {
-      "id": "hair",
-      "name": "Hair",
-      "palette_indices": [0, 1, 2]
-    }
+  mask_groups: [
+    { id: 'hair', name: 'Hair', palette_indices: [0, 1, 2] },
   ],
-  "sockets": {
-    "definitions": [
-      {
-        "name": "right_hand"
-      },
-      {
-        "name": "head"
-      }
+  sockets: {
+    definitions: [{ name: 'right_hand' }, { name: 'head' }],
+    frames: [
+      /* Every record defines all sockets in definition order.
+         Omitted frame records inherit by frame index. */
+      { frame_index: 0, positions: [[12, 15], [8, 3]] },
+      { frame_index: 3, positions: [[13, 14, 30], [8, 2]] },
+      // Omitting r in an explicit position sets it to zero.
+      { frame_index: 6, positions: [[12, 15], [8, 3]] },
     ],
-    "frames": [
-      {
-        "frame_index": 0,
-        "positions": [
-          [12, 15],
-          [8, 3]
-        ]
-      },
-      {
-        "frame_index": 3,
-        "positions": [
-          [13, 14, 30],
-          [8, 2]
-        ]
-      },
-      {
-        "frame_index": 6,
-        "positions": [
-          [12, 15],
-          [8, 3]
-        ]
-      }
-    ]
-  }
+  },
 }
 ```
 
-Malformed JSON, duplicate object members, or an unsupported schema version disables this metadata object with a warning. An invalid individual clip or group SHOULD be ignored without discarding unrelated valid entries. For repeated IDs, the first valid entry wins; later duplicates are ignored with a warning.
+Malformed JSON5, duplicate object members, or an unsupported schema version disables this metadata object with a warning. An invalid individual clip or group SHOULD be ignored without discarding unrelated valid entries. For repeated IDs, the first valid entry wins; later duplicates are ignored with a warning.
 
 Missing or ignored metadata MUST NOT prevent core image decoding or full-animation playback.
 
@@ -894,6 +873,6 @@ Before compression, a map costs two bytes per corresponding source pixel: a 50% 
 - **PNG3:** W3C, *Portable Network Graphics (PNG) Specification (Third Edition)*, Recommendation, 24 June 2025. [Fixed edition](https://www.w3.org/TR/2025/REC-png-3-20250624/).
 - **RFC2119:** S. Bradner, *Key words for use in RFCs to Indicate Requirement Levels*, BCP 14, March 1997. [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
 - **RFC8174:** B. Leiba, *Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words*, BCP 14, May 2017. [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174).
-- **RFC8259:** T. Bray, Ed., *The JavaScript Object Notation (JSON) Data Interchange Format*, December 2017. [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259).
+- **JSON5:** *The JSON5 Data Interchange Format*, version 1.0.0, March 2018. [JSON5 specification](https://spec.json5.org/).
 
 - **RFC1950:** P. Deutsch, J-L. Gailly, *ZLIB Compressed Data Format Specification version 3.3*, May 1996. [RFC 1950](https://www.rfc-editor.org/rfc/rfc1950).

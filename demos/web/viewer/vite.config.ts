@@ -11,13 +11,13 @@ function sampleAssets(): Plugin {
     configureServer(server) {
       server.middlewares.use('/samples',(req,res,next) => {
         const name = (req.url ?? '').split('?')[0].replace(/^\//,'');
-        if (!/^[a-z0-9-]+\.(papng|json)$/.test(name)) return next();
-        try { res.setHeader('Content-Type',name.endsWith('.json')?'application/json':'application/octet-stream'); res.end(readFileSync(resolve(samples,name))); }
+        if (!/^[a-z0-9-]+\.(papng|json|json5)$/.test(name)) return next();
+        try { res.setHeader('Content-Type',name.endsWith('.json5')?'text/plain; charset=utf-8':name.endsWith('.json')?'application/json':'application/octet-stream'); res.end(readFileSync(resolve(samples,name))); }
         catch { res.statusCode = 404; res.end('Sample not found'); }
       });
     },
     generateBundle() {
-      for (const name of readdirSync(samples)) if (/\.(papng|json)$/.test(name)) this.emitFile({type:'asset',fileName:`samples/${name}`,source:readFileSync(resolve(samples,name))});
+      for (const name of readdirSync(samples)) if (/\.(papng|json|json5)$/.test(name)) this.emitFile({type:'asset',fileName:`samples/${name}`,source:readFileSync(resolve(samples,name))});
     }
   };
 }

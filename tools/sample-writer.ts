@@ -97,8 +97,8 @@ export function encodePapng(d: SampleDefinition) {
   const maskData = maskExtension(d);
   if (maskData) parts.push(pngChunk('paMD',maskData));
   if (d.metadata || d.metadataText) {
-    const json = new TextEncoder().encode(d.metadataText ?? JSON.stringify(d.metadata));
-    parts.push(pngChunk('iTXt',concat([new TextEncoder().encode('PAPNG.Metadata\0'),Uint8Array.from([d.compressedMetadata?1:0,0,0,0]),d.compressedMetadata?deflateSync(json):json])));
+    const text = new TextEncoder().encode(d.metadataText ?? JSON.stringify(d.metadata));
+    parts.push(pngChunk('iTXt',concat([new TextEncoder().encode('PAPNG.Metadata\0'),Uint8Array.from([d.compressedMetadata?1:0,0,0,0]),d.compressedMetadata?deflateSync(text):text])));
   }
   if (d.poster) parts.push(pngChunk('IDAT',scanlines(d.poster,d.width,d.height,d.interlace)));
   let sequence = 0;

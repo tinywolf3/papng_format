@@ -55,8 +55,8 @@ test('invalid socket definitions or missing frame zero disable only sockets, pre
 test('published bilingual metadata examples load and reset rotation at frame six',async()=>{
   for(const lang of ['ko','en']) {
     const text=readFileSync(new URL(`../spec/PAPNG-1.0.${lang}.md`,import.meta.url),'utf8');
-    const metadata=JSON.parse(/```json\n([\s\S]*?)```/.exec(text)![1]);
-    const doc=await parsePapng(encodePapng({width:1,height:1,maskCount:3,frames:Array.from({length:8},()=>({rgba:Uint8Array.of(0,0,0,0)})),metadata}));
+    const metadataText=/```json5\n([\s\S]*?)```/.exec(text)![1];
+    const doc=await parsePapng(encodePapng({width:1,height:1,maskCount:3,frames:Array.from({length:8},()=>({rgba:Uint8Array.of(0,0,0,0)})),metadataText}));
     assert.deepEqual(doc.warnings,[]);assert.deepEqual(socketsAt(doc.sockets,5)?.positions[0],[13,14,30]);
     assert.deepEqual(socketsAt(doc.sockets,7)?.positions[0],[12,15,0]);
   }

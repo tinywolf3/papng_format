@@ -188,3 +188,55 @@ test('changing samples cancels an accessory that is still downloading',async({pa
   await choose(page,'palette-creature.papng');release();await expect(page.locator('#play')).toBeEnabled();await expect(page.locator('#socket-panel')).toBeHidden();
   await page.waitForTimeout(200);await expect(page.locator('#messages p')).toHaveCount(0);await expect(page.locator('#file-name')).toHaveText('palette-creature.papng');
 });
+
+
+test('JSON5 developer notes are readable in compressed and uncompressed samples without affecting playback',async({page})=>{
+  for(const file of ['socket-buddy.papng','restore-previous.papng']) {
+    await choose(page,file);
+    await expect(page.locator('#metadata-panel')).toBeVisible();
+    await page.locator('#metadata-panel').evaluate((node:HTMLDetailsElement)=>{node.open=true;});
+    await expect(page.locator('#metadata-source')).toContainText('// PAPNG 개발자 참고:');
+    await expect(page.locator('#metadata-source')).toContainText('/* PAPNG.Metadata 스키마 */');
+    await expect(page.locator('#metadata-source')).toContainText('developer_notes:');
+    await expect(page.locator('#metadata-note')).toContainText('읽기 전용');
+    await expect(page.locator('#messages p')).toHaveCount(0);
+  }
+  await choose(page,'socket-buddy.papng');
+  const source=await page.request.get('/samples/socket-buddy-metadata.json5');
+  expect(source.ok()).toBe(true);
+  expect(await page.locator('#metadata-source').textContent()).toBe(await source.text());
+  await page.setViewportSize({width:390,height:844});
+  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:`${artifacts}/json5-mobile.png`,fullPage:true});
+});
+
+test('JSON5 source is displayed literally and clears on missing or invalid metadata',async({page})=>{
+  const text=`// <img src="bad" onerror="globalThis.metadataExecuted=true">
+{schema_version:1,developer_notes:'<script>globalThis.metadataExecuted=true</script>',}`;
+  const frame={rgba:Uint8Array.of(12,34,56,255)};
+  await upload(page,encodePapng({width:1,height:1,frames:[frame],metadataText:text}),'notes.papng');
+  await expect(page.locator('#file-name')).toHaveText('notes.papng');
+  expect(await page.locator('#metadata-source').textContent()).toBe(text);
+  await expect(page.locator('#metadata-source img, #metadata-source script')).toHaveCount(0);
+  expect(await page.evaluate(()=>Reflect.get(globalThis,'metadataExecuted'))).toBeUndefined();
+  expect(await pixels(page)).toEqual([12,34,56,255]);
+  for(const [name,metadataText] of [['none.papng',undefined],['duplicate.papng',"{schema_version:1,'schema_version':1}"]] as const) {
+    await upload(page,encodePapng({width:1,height:1,frames:[frame],metadataText}),name);
+    await expect(page.locator('#file-name')).toHaveText(name);
+    await expect(page.locator('#metadata-panel')).toBeHidden();
+    await expect(page.locator('#metadata-source')).toHaveText('');
+    expect(await pixels(page)).toEqual([12,34,56,255]);
+    if(metadataText)await expect(page.locator('#messages')).toContainText('중복 JSON5');
+  }
+});
+
+test('long JSON5 notes have a bounded preview while metadata beyond the preview still works',async({page})=>{
+  const text=`{schema_version:1,/*${'x'.repeat(70000)}*/sockets:{definitions:[{name:'tail_socket'}],frames:[{frame_index:0,positions:[[0,0]]}]}}`;
+  await upload(page,encodePapng({width:1,height:1,frames:[{rgba:Uint8Array.of(1,2,3,255)}],metadataText:text}),'long-notes.papng');
+  await expect(page.locator('#file-name')).toHaveText('long-notes.papng');
+  await page.locator('#metadata-panel').evaluate((node:HTMLDetailsElement)=>{node.open=true;});
+  expect(await page.locator('#metadata-source').textContent()).toBe(text.slice(0,65536));
+  await expect(page.locator('#metadata-note')).toContainText('65,536자');
+  await expect(page.locator('#socket-select option')).toHaveText('0 · tail_socket');
+  await expect(page.locator('#messages p')).toHaveCount(0);
+});

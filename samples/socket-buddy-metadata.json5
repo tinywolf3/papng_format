@@ -1,0 +1,80 @@
+// PAPNG 개발자 참고: 이 주석은 재생에 영향을 주지 않습니다.
+{
+  schema_version: 1, /* PAPNG.Metadata 스키마 */
+  clips: [
+    {
+      id: 'raised',
+      name: '손 들기 · 이전 소켓 상속',
+      start_frame: 3,
+      end_frame: 5,
+      play_count: 0,
+    },
+  ],
+  sockets: {
+    definitions: [
+      {
+        name: 'right_hand',
+      },
+      {
+        name: 'head',
+      },
+    ],
+    frames: [
+      {
+        frame_index: 0,
+        positions: [
+          [
+            29,
+            27,
+          ],
+          [
+            21,
+            12,
+            -10,
+          ],
+        ],
+      },
+      {
+        frame_index: 2,
+        positions: [
+          [
+            30,
+            25,
+            -35,
+          ],
+          [
+            21,
+            11,
+            12.5,
+          ],
+        ],
+      },
+      {
+        frame_index: 4,
+        positions: [
+          [
+            29,
+            27,
+          ],
+          [
+            21,
+            12,
+          ],
+        ],
+      },
+    ],
+  },
+  mask_groups: [
+    {
+      id: 'mask-0',
+      name: '친구의 몸과 손',
+      palette_indices: [
+        0,
+      ],
+    },
+  ],
+  developer_notes: {
+    purpose: '손 소켓에 부속의 pivot을 맞추는 예제',
+    attachment_hint: 'right_hand 또는 head에 지팡이를 연결하세요.',
+  },
+}

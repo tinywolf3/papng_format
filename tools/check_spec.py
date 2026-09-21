@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import re
 import struct
+import subprocess
 from urllib.parse import unquote, urlsplit
 import zlib
 
@@ -155,9 +156,16 @@ def check_semantics(text: str) -> None:
     require("uint16 mask_count" in text and "uint32 mask_data_count" in text, "Mask layout")
     require("h_out = (h + hue_offset_degrees / 360) mod 1" in text, "Hue offset rule")
     require("**Document revision:** 1" in text or "**문서 개정:** 1" in text, "Document revision must remain 1")
-    json_blocks = re.findall(r"\x60{3}json\s*([\s\S]*?)\x60{3}", text)
-    require(len(json_blocks) == 1, "One metadata example expected")
-    metadata = json.loads(json_blocks[0])
+    json_blocks = re.findall(r"\x60{3}json5\s*([\s\S]*?)\x60{3}", text)
+    require(len(json_blocks) == 1, "One JSON5 metadata example expected")
+    # Use the same bounded, duplicate-aware parser as the TypeScript reader.
+    parsed = subprocess.run([
+        "node", "--import", "tsx", "--input-type=module", "--eval",
+        "import { readFileSync } from 'node:fs'; "
+        "import { uniqueJson5 } from './packages/papng/src/json5.ts'; "
+        "process.stdout.write(JSON.stringify(uniqueJson5(readFileSync(0, 'utf8'))));",
+    ], input=json_blocks[0], text=True, capture_output=True, cwd=ROOT, check=True)
+    metadata = json.loads(parsed.stdout)
     require(metadata["schema_version"] == 1, "Metadata schema")
     require(metadata["clips"][0]["start_frame"] == 0 and metadata["clips"][0]["end_frame"] == 7, "Clip example")
     require(metadata["mask_groups"][0]["palette_indices"] == [0,1,2], "Group example")
