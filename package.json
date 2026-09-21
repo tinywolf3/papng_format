@@ -1,6 +1,6 @@
 {
   "name": "papng-format",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,15 +9,12 @@
     "preview": "vite preview --config demos/web/viewer/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "samples": "tsx tools/generate-samples.ts",
-    "test": "tsx --test tests/*.test.ts",
-    "test:web": "playwright test --config tests/playwright.config.ts",
-    "check": "npm run typecheck && npm test && python3 tools/check_spec.py"
+    "check": "npm run typecheck"
   },
   "engines": {
     "node": ">=22.12"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

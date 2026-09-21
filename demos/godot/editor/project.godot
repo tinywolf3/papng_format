@@ -1,0 +1,34 @@
+config_version=5
+
+[application]
+config/name="PAPNG Editor"
+config/version="0.2.0"
+run/main_scene="res://start.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[display]
+window/size/viewport_width=1440
+window/size/viewport_height=940
+window/size/window_width_override=1440
+window/size/window_height_override=940
+window/dpi/allow_hidpi=true
+window/handheld/orientation=6
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+textures/canvas_textures/default_texture_filter=0
+textures/vram_compression/import_s3tc_bptc=true
+textures/vram_compression/import_etc2_astc=true
+
+[debug]
+gdscript/warnings/integer_division=0
+gdscript/warnings/inference_on_variant=0
+
+[input_devices]
+pointing/emulate_mouse_from_touch=true
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/android_open/plugin.cfg")

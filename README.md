@@ -23,22 +23,14 @@ PAPNG는 게임용 픽셀아트 리소스의 편집·저장·공유를 위한 **
 
 **한국어 명세가 기본이자 기준 문서입니다.** 두 언어판 사이에 해석 차이가 있으면 한국어판을 따릅니다. 명세는 Markdown으로 관리합니다.
 
-### 샘플과 웹 뷰어
+### 샘플과 편집기·뷰어
 
 - [기능별 PAPNG 샘플 9개](samples/README.md): 마스크 색상, 모든 분포·프레임 제어, 숨김 프레임 합성, 부분 프레임 복원과 메타데이터를 확인할 수 있습니다.
+- [Godot 픽셀 편집기](demos/godot/editor/README.md): Linux·Windows·Android용 픽셀·마스크 편집, 프레임·소켓·클립 구성, 이미지 가져오기와 PAPNG 저장을 지원합니다.
+- [Godot 이미지 뷰어](demos/godot/viewer/README.md): Linux·Windows·Android용 파일 선택·연결 프로그램, 마스크 색상 변경, 위치 표시와 소켓 부속 미리보기를 지원합니다.
 - [TypeScript 웹 뷰어](demos/web/viewer/README.md): 로컬 파일 재생, 마스크 색상각 변화량 편집, 클립 선택, 소켓에 부속 연결과 점프 대상 우선 캐시를 시험할 수 있습니다.
 
 Node.js 22.12 이상에서 `npm ci` 후 `npm run dev`로 실행합니다. 디코더와 플레이어는 포맷 동작을 확인하기 위한 실험용 구현입니다.
-
-### 문서 검증
-
-Python 3.10 이상과 Node.js 22.12 이상이 필요합니다. `npm ci`로 의존성을 설치한 후 실행합니다. JSON5 예제는 TypeScript 리더와 같은 파서로 검증합니다.
-
-```sh
-python3 tools/check_spec.py
-```
-
-한국어·영어 명세의 바이너리 예제, 정수 범위, 필드 오프셋과 메타데이터 예제를 검증합니다. 두 언어판의 절 구성·구조 선언·예제 일치 여부와 Markdown 문서의 로컬 링크·앵커도 확인합니다.
 
 ### 라이선스
 
@@ -57,22 +49,14 @@ It preserves original RGBA and adds independently compressed, shareable 16-bit m
 
 **The Korean specification is the default and normative edition.** If the editions differ in interpretation, the Korean edition takes precedence. Specifications are maintained in Markdown.
 
-### Samples and viewer
+### Samples, editor and viewers
 
 - [Nine PAPNG samples](samples/README.md) demonstrate mask colors, every distribution and control type, hidden-frame composition, partial-frame restoration, and socket attachments.
+- The [Godot pixel editor](demos/godot/editor/README.md) provides Linux/Windows/Android pixel and mask editing, animation authoring, image import, and PAPNG saving.
+- The [standalone Godot viewer](demos/godot/viewer/README.md) opens PAPNG, PNG and APNG on Linux, Windows and Android, with mask colors, overlays and a socket attachment preview.
 - The [TypeScript web viewer](demos/web/viewer/README.md) provides local playback, hue-offset editing, clip selection, and a cache that favors jump targets.
 
 With Node.js 22.12 or later, run `npm ci` and `npm run dev`. The decoder and player are experimental implementations for exploring the format.
-
-### Documentation checks
-
-Python 3.10 or later and Node.js 22.12 or later are required. Install dependencies with `npm ci` before running the checker. JSON5 examples are validated with the same parser as the TypeScript reader.
-
-```sh
-python3 tools/check_spec.py
-```
-
-The checker validates binary vectors, integer boundaries, field offsets, and example metadata in both editions. It also verifies matching section structure, layout declarations, and examples across editions, plus local Markdown links and anchors.
 
 ### License
 

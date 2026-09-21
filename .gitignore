@@ -4,6 +4,33 @@
 # Do not ignore build/ globally: case-insensitive Git also matches Unreal Build/.
 # Extend these rules in project-local .gitignore files where necessary.
 
+# Local development and agent configuration
+/AGENTS.md
+/.cursor/
+/.agents/
+/.codex/
+/.local/
+
+# Private test sources, fixtures, runners, and test-only manifests
+tests/
+test/
+__tests__/
+*.test.*
+*.spec.*
+
+# Tools are local by default; publish only build and sample-generation dependencies.
+/tools/*
+!/tools/generate-samples.ts
+!/tools/sample-writer.ts
+!/tools/native/
+/tools/native/*
+!/tools/native/build.py
+!/tools/native/common.py
+!/tools/editor/
+/tools/editor/*
+!/tools/editor/build.py
+!/tools/editor/common.py
+
 # OS and user-specific editor files
 .DS_Store
 Thumbs.db

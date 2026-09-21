@@ -125,9 +125,9 @@ PNG 필터 0–4와 Adam7을 직접 복원하여 원본 비선곱 RGBA를 얻습
 
 난수는 `crypto.getRandomValues()`에서 얻습니다. 정수 누적 확률과 거부 추출을 사용하여 범위 나머지 연산의 편향을 피합니다. 큰 32비트 구간의 가중치 합은 `BigInt`로 계산하며 구간 전체를 배열로 만들지 않습니다. 시드 저장이나 재생 순서 재현 UI는 제공하지 않습니다.
 
-## 지원 범위와 검증
+## 지원 범위
 
-현대적인 브라우저의 Worker·Canvas·`DecompressionStream`·`BigInt`가 필요합니다. 자동 브라우저 검증은 Chromium을 사용합니다. 일반 PNG/APNG의 PAPNG 가져오기 변환, 파일 저장, 색 관리 프로파일 적용은 이 데모 범위에 포함되지 않습니다. `gAMA`·`cHRM`·`iCCP`가 있으면 색 관리 미적용을 알립니다. 애니메이션 밖의 기본 포스터는 재생 프레임에 포함하지 않습니다.
+현대적인 브라우저의 Worker·Canvas·`DecompressionStream`·`BigInt`가 필요합니다. 일반 PNG/APNG의 PAPNG 가져오기 변환, 파일 저장, 색 관리 프로파일 적용은 이 데모 범위에 포함되지 않습니다. `gAMA`·`cHRM`·`iCCP`가 있으면 색 관리 미적용을 알립니다. 애니메이션 밖의 기본 포스터는 재생 프레임에 포함하지 않습니다.
 
 데모의 호스트 예산은 입력 파일 128 MiB, 캔버스 RGBA 한 장 128 MiB, 선택적 텍스트 메타데이터 8 MiB, JSON5 중첩 128단계 미만입니다. 넘으면 이유를 표시하여 중단하거나 선택적 메타데이터만 무시합니다. PAPNG의 크기·프레임 수 한도가 아닙니다. 잘못된 마스크는 원본 RGBA 유지, 잘못된 제어는 10ms 후 순차 진행으로 복구하고 경고합니다.
 
@@ -135,8 +135,6 @@ PNG 필터 0–4와 Adam7을 직접 복원하여 원본 비선곱 RGBA를 얻습
 npm run samples
 npm run check
 npm run build
-npx playwright install chromium
-npm run test:web
 ```
 
-Chromium 설치는 처음 한 번 필요합니다. 브라우저 테스트는 미리보기와 충돌하지 않도록 별도 포트 4174를 사용합니다. 검사에는 모든 PNG 필터·Adam7, 원본 RGBA와 픽셀별 알파 보존, 32767번 마스크, 공유·생략·손상된 마스크 배열, 캐시 사용 여부에 따른 합성 일치, 앞뒤·자기 이동, RNG 추출 시점, 클립, 유한 반복, 오류 복구, 숨김 프레임 순환의 UI 응답성, 데스크톱·모바일 화면이 포함됩니다. 브라우저 보고서와 스크린샷은 `builds/web/viewer-tests/` 아래에 저장합니다.
+`npm run check`는 공개 소스의 TypeScript 타입을 검사합니다.
