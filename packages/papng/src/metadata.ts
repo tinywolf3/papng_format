@@ -1,3 +1,4 @@
+import { parseSockets } from './sockets';
 import { assert, type Papng, type Warn } from './types';
 
 // JSON.parse alone silently accepts duplicate keys; PAPNG must reject them.
@@ -45,6 +46,7 @@ export function parseMetadata(text: string, doc: Papng, warn: Warn) {
     const data = uniqueJson(text);
     assert(obj(data) && data.schema_version === 1, '지원하지 않는 메타데이터 스키마');
     for (const key of ['clips', 'mask_groups']) assert(data[key] === undefined || Array.isArray(data[key]), '메타데이터 배열 타입 오류');
+    doc.sockets = parseSockets(data.sockets,doc.frames.length,warn);
     for (const clip of (data.clips ?? []) as unknown[]) {
       if (!obj(clip) || typeof clip.id !== 'string' || !clip.id || (clip.name !== undefined && typeof clip.name !== 'string') || !uint(clip.start_frame) || !uint(clip.end_frame) || clip.start_frame > clip.end_frame || clip.end_frame >= doc.frames.length || !uint(clip.play_count)) { warn('잘못된 클립 무시'); continue; }
       if (doc.clips.some(c => c.id === clip.id)) { warn('중복 클립 ID 무시'); continue; }
@@ -55,5 +57,5 @@ export function parseMetadata(text: string, doc: Papng, warn: Warn) {
       if (doc.groups.some(g => g.id === group.id)) { warn('중복 마스크 그룹 ID 무시'); continue; }
       doc.groups.push({ id: group.id, name: (group.name ?? group.id) as string, indices: group.palette_indices });
     }
-  } catch (error) { doc.clips = []; doc.groups = []; warn(`메타데이터 무시: ${String(error)}`); }
+  } catch (error) { doc.clips = []; doc.groups = []; doc.sockets = undefined; warn(`메타데이터 무시: ${String(error)}`); }
 }

@@ -77,7 +77,7 @@ async function handle(command: Command, token: number) {
       send({type:'busy',busy:true,message:`원본 마스크 평균색 계산 중… ${done} / ${total} 프레임`});
     });
     if (cancel()) return;
-    send({type:'info',info:{name:command.name,width:doc.width,height:doc.height,frames:doc.frames.length,bytes:doc.byteLength,maskCount:doc.maskCount,maskColors,maskMaps:doc.maskData.length,maskBindings:doc.frameMasks.size,clips:doc.clips,groups:doc.groups,hints:doc.hints,distributions:doc.distributions.map(d=>({kind:d.kind,valid:d.valid})),controls:[...doc.controls.values()].flat().map(c=>({frame:c.frame,type:c.type}))}});
+    send({type:'info',info:{name:command.name,width:doc.width,height:doc.height,frames:doc.frames.length,bytes:doc.byteLength,maskCount:doc.maskCount,maskColors,maskMaps:doc.maskData.length,maskBindings:doc.frameMasks.size,clips:doc.clips,groups:doc.groups,sockets:doc.sockets,hints:doc.hints,distributions:doc.distributions.map(d=>({kind:d.kind,valid:d.valid})),controls:[...doc.controls.values()].flat().map(c=>({frame:c.frame,type:c.type}))}});
     for (const message of doc.warnings) warn(message);
     clearImage(); await player.start(undefined,cancel); await firstVisible(token); send({type:'busy',busy:false}); return;
   }
@@ -85,7 +85,7 @@ async function handle(command: Command, token: number) {
   if (command.type === 'pause') { remaining = Math.max(0,deadline-performance.now()); status(); return; }
   if (command.type === 'play') {
     if (player.ended) { clearImage(); await player.start(clipId,cancel); await firstVisible(token); }
-    playing = true; deadline = performance.now()+remaining; status(); schedule(); return;
+    playing = true; deadline = (command.startedAt === undefined ? performance.now() : command.startedAt-performance.timeOrigin)+remaining; status(); schedule(); return;
   }
   if (command.type === 'budget') { budget = command.bytes; player.compositor.cache.setBudget(budget); status(); return; }
   send({type:'busy',busy:true});

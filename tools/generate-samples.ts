@@ -28,7 +28,7 @@ function sprite(phase: number) {
   a.rect(2,15,2,3,painted(3));
   return {rgba:a.rgba,mask:a.mask};
 }
-const samples: {file:string;title:string;subtitle:string;features:string[];definition:SampleDefinition}[] = [];
+const samples: {file:string;title:string;subtitle:string;features:string[];attachment?:{file:string;socket:string};definition:SampleDefinition}[] = [];
 samples.push({file:'palette-creature.papng',title:'팔레트 정원',subtitle:'원본 RGBA 보존 · 색상각 변화량 편집',features:['mask16','original-rgba','per-pixel-alpha','shared-maps','display','bbox','scale','pivot','clips','mask-groups'],definition:{width:24,height:24,maskCount:4,frames:Array.from({length:8},(_,i)=>({...sprite(i),num:1,den:8})),hints:{display:[240,240],bbox:[2,3,19,19],scale:10,pivot:[12,21]},metadata:{schema_version:1,clips:[{id:'idle',name:'기본 · 전체',start_frame:0,end_frame:7,play_count:0},{id:'blink',name:'깜빡임 · 뒤쪽 클립',start_frame:2,end_frame:4,play_count:3}],mask_groups:[{id:'body',name:'몸체와 장식',palette_indices:[0,3]},{id:'flower',name:'꽃과 반짝임',palette_indices:[1,2]}]}}});
 samples.push({file:'distribution-beats.papng',title:'확률의 박자',subtitle:'다섯 분포가 바꾸는 머무는 시간',features:['FIXED_DELAY','RANDOM_DELAY','UNIFORM','TRIANGULAR','FAVOR_LOW','FAVOR_HIGH','WEIGHTED_VALUES','den-zero'],definition:{width:24,height:24,maskCount:4,frames:Array.from({length:6},(_,i)=>{const a=art(24,24);for(let b=0;b<6;b++){a.rect(2+b*3,20-(b+1)*2,2,(b+1)*2,painted(i===b?2:0,i===b?255:100));}return{rgba:a.rgba,mask:a.mask,num:1,den:5};}),distributions:[{kind:1},{kind:2},{kind:3},{kind:4,items:[[150,1],[400,3],[900,1]]}],controls:[{frame:0,type:0,values:[50,0]},...Array.from({length:5},(_,i)=>({frame:i+1,type:1,values:i===4?[0,0,1000,4]:[100,900,1000,i]}))],hints:{scale:10}}});
 samples.push({file:'jump-orbit.papng',title:'점프 궤도',subtitle:'상대·절대·랜덤 이동과 재방문',features:['RELATIVE_JUMP','ABSOLUTE_MOVE','RANDOM_RELATIVE_JUMP','RANDOM_ABSOLUTE_MOVE','backward','self-target','target-cache'],definition:{width:24,height:24,maskCount:4,frames:Array.from({length:8},(_,i)=>{const a=art(24,24);for(let n=0;n<8;n++){const angle=n*Math.PI/4,x=Math.round(11+8*Math.cos(angle)),y=Math.round(11+8*Math.sin(angle));a.rect(x,y,3,3,painted(n===i?2:0,n===i?255:100));}a.rect(9,10,6,4,painted(1));return{rgba:a.rgba,mask:a.mask,num:4,den:10};}),distributions:[{kind:4,items:[[-2,2],[0,1],[1,5]]}],controls:[{frame:0,type:2,values:[2]},{frame:2,type:3,values:[4]},{frame:4,type:4,values:[0,0,1]},{frame:5,type:5,values:[0,7,0]}],hints:{scale:10}}});
@@ -41,16 +41,41 @@ const backdrop=art(16,16);backdrop.rect(2,3,12,10,painted(0,125));
 const glass=art(7,7);glass.rect(0,0,7,7,painted(3));glass.rect(2,2,3,3,painted(2,255));
 const dot=art(2,2);dot.rect(0,0,2,2,painted(1));
 samples.push({file:'restore-previous.papng',title:'유리와 잔상',subtitle:'반투명 OVER와 PREVIOUS 상태 복원',features:['PREVIOUS','OVER','partial-frames','interlace','compressed-metadata','backward'],definition:{width:16,height:16,maskCount:4,interlace:true,compressedMetadata:true,frames:[{rgba:backdrop.rgba,mask:backdrop.mask,num:4,den:10},{rgba:glass.rgba,mask:glass.mask,width:7,height:7,x:5,y:5,num:7,den:10,blend:1,dispose:2},{rgba:dot.rgba,mask:dot.mask,width:2,height:2,x:3,y:4,num:6,den:10,blend:1}],controls:[{frame:2,type:2,values:[-1]}],metadata:{schema_version:1,mask_groups:[{id:'glass',name:'반투명 유리',palette_indices:[3]}]},hints:{scale:15}}});
-samples.push({file:'300-frame-spectrum.papng',title:'300개의 작은 순간',subtitle:'1 × 1 캔버스 · 프레임 256을 넘어',features:['1x1','over-256-frames','ordinary-rgba','finite-plays','empty-palettes'],definition:{width:1,height:1,plays:1,frames:Array.from({length:300},(_,i)=>({rgba:Uint8Array.from([Math.round(127+127*Math.sin(i/47)),Math.round(127+127*Math.sin(i/47+2)),Math.round(127+127*Math.sin(i/47+4)),255]),num:1,den:100})),hints:{scale:128}}});
+samples.push({file:'300-frame-spectrum.papng',title:'300개의 작은 순간',subtitle:'1 × 1 캔버스 · 300프레임의 색상 변화',features:['1x1','300-frames','ordinary-rgba','finite-plays','empty-palettes'],definition:{width:1,height:1,plays:1,frames:Array.from({length:300},(_,i)=>({rgba:Uint8Array.from([Math.round(127+127*Math.sin(i/47)),Math.round(127+127*Math.sin(i/47+2)),Math.round(127+127*Math.sin(i/47+4)),255]),num:1,den:100})),hints:{scale:128}}});
 const ribbons = art(28,14);
 const alphas = [0,1,32,64,128,192,255];
 for (let band = 0; band < 7; band++) {
   ribbons.rect(band*4,1,4,5,[240,85,60,alphas[band],0]);
   ribbons.rect(band*4,8,4,5,[60,160,240,alphas[band],0]);
 }
-samples.push({file:'alpha-ribbons.papng',title:'하나의 마스크, 일곱 알파',subtitle:'원본 알파 0·1·32·64·128·192·255와 마스크 공유',features:['mask16','per-pixel-alpha','alpha-one','original-hue-variation','shared-maps'],definition:{width:28,height:14,maskCount:1,frames:Array.from({length:4},(_,i)=>({rgba:Uint8Array.from(ribbons.rgba,(v,n)=>n%4===3?v:Math.max(0,v-i*8)),mask:ribbons.mask,num:5,den:10})),metadata:{schema_version:1,mask_groups:[{id:'ribbons',name:'두 색상 · 일곱 알파',palette_indices:[0]}]},hints:{scale:12}}});
+samples.push({file:'alpha-ribbons.papng',title:'하나의 마스크, 일곱 알파',subtitle:'픽셀별 투명도 · 두 색상을 묶은 마스크 공유',features:['mask16','per-pixel-alpha','original-hue-variation','shared-maps'],definition:{width:28,height:14,maskCount:1,frames:Array.from({length:4},(_,i)=>({rgba:Uint8Array.from(ribbons.rgba,(v,n)=>n%4===3?v:Math.max(0,v-i*8)),mask:ribbons.mask,num:5,den:10})),metadata:{schema_version:1,mask_groups:[{id:'ribbons',name:'두 색상 · 일곱 알파',palette_indices:[0]}]},hints:{scale:12}}});
+// Parent and accessory intentionally have different frame counts and delays.
+const handPoses = [[29,27,0],[29,27,0],[30,25,-35],[30,25,-35],[29,27,0],[29,27,0]];
+const socketFrames = handPoses.map(([x,y],i) => {
+  const a = art(48,40), bob = i === 2 || i === 3 ? -1 : 0;
+  a.rect(9,35,25,2,[35,43,62,120]);
+  a.rect(16,12+bob,11,2,painted(0,160)); a.rect(12,14+bob,18,17,painted(0));
+  a.rect(14,31,5,3,painted(0,140)); a.rect(24,31,5,3,painted(0,140));
+  a.rect(15,16+bob,4,2,painted(0,255,90));
+  a.rect(17,21+bob,2,i===5?1:3,[26,32,47,255]); a.rect(25,21+bob,2,i===5?1:3,[26,32,47,255]);
+  a.rect(21,27+bob,2,1,[26,32,47,255]);
+  a.rect(x-2,y-2,4,4,painted(0,205));
+  return {rgba:a.rgba,mask:a.mask,num:1,den:2};
+});
+samples.push({file:'socket-buddy.papng',title:'소켓 친구',subtitle:'손과 머리 소켓 · 회전하는 별빛 지팡이',features:['sockets','rotation','sparse-poses','pivot-attachment','independent-animation'],attachment:{file:'socket-wand.papng',socket:'right_hand'},definition:{width:48,height:40,maskCount:1,frames:socketFrames,hints:{scale:7,pivot:[21,35]},metadata:{schema_version:1,clips:[{id:'raised',name:'손 들기 · 이전 소켓 상속',start_frame:3,end_frame:5,play_count:0}],sockets:{definitions:[{name:'right_hand'},{name:'head'}],frames:[{frame_index:0,positions:[[29,27],[21,12,-10]]},{frame_index:2,positions:[[30,25,-35],[21,11,12.5]]},{frame_index:4,positions:[[29,27],[21,12]]}]}}}});
+samples.push({file:'socket-wand.papng',title:'별빛 지팡이',subtitle:'부속 PAPNG · 손잡이 pivot · 독립적인 반짝임',features:['attachment-resource','pivot','independent-animation','per-pixel-alpha'],definition:{width:10,height:20,maskCount:1,frames:Array.from({length:4},(_,i)=>{
+  const a=art(10,20);
+  a.rect(4,8,2,12,[124,89,64,255]); a.rect(3,15,4,3,[238,184,78,255]);
+  a.rect(3,3,4,6,[255,195+i*12,70+i*25,255,0]); a.rect(1,5,8,2,[255,211,91,255,0]);
+  a.pixel(4,2,[255,242,173,255,0]);
+  if(i%2){a.pixel(8,1,[255,244,175,190,0]);a.pixel(1,10,[255,244,175,190,0]);}
+  else {a.pixel(1,1,[255,244,175,190,0]);a.pixel(8,10,[255,244,175,190,0]);}
+  return {rgba:a.rgba,mask:a.mask,num:1,den:8};
+}),hints:{scale:12,pivot:[5,17]},metadata:{schema_version:1}}});
 // A single-index mask group supplies a display name using existing v1 metadata.
 const maskNames: Record<string,string[]> = {
+  'socket-buddy.papng': ['친구의 몸과 손'],
+  'socket-wand.papng': ['별빛과 반짝임'],
   'palette-creature.papng': ['몸체','꽃잎','꽃술과 반짝임','반투명 장식'],
   'distribution-beats.papng': ['기본 막대','예비 마스크 1','강조 막대','예비 마스크 3'],
   'jump-orbit.papng': ['궤도 점','중앙 본체','활성 궤도 점','예비 마스크 3'],

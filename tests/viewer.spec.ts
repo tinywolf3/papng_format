@@ -13,9 +13,9 @@ async function upload(page:Page,bytes:Uint8Array,name='test.papng'){await page.l
 
 test.beforeEach(async({page})=>{await page.goto('/');await expect(canvas(page)).toHaveAttribute('data-frame','0');});
 
-test('all seven bundled files load without warnings, errors or browser exceptions',async({page})=>{
+test('all nine bundled files load without warnings, errors or browser exceptions',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
-  for(const [file,frame] of [['palette-creature.papng',0],['distribution-beats.papng',0],['jump-orbit.papng',0],['hidden-growth.papng',3],['restore-previous.papng',0],['alpha-ribbons.papng',0],['300-frame-spectrum.papng',0]] as const){
+  for(const [file,frame] of [['palette-creature.papng',0],['distribution-beats.papng',0],['jump-orbit.papng',0],['hidden-growth.papng',3],['restore-previous.papng',0],['alpha-ribbons.papng',0],['socket-buddy.papng',0],['socket-wand.papng',0],['300-frame-spectrum.papng',0]] as const){
     await choose(page,file,frame);expect((await pixels(page)).some((n,i)=>i%4===3&&n>0)).toBe(true);await expect(page.locator('#messages p')).toHaveCount(0);
   }
   await seek(page,299);await expect(page.locator('#frame-label')).toHaveText('299 / 299');expect(errors).toEqual([]);
@@ -125,4 +125,66 @@ test('undefined reference hues stay disabled after rendering while offset editin
   await offset.fill('120');await offset.press('Tab');await expect(page.locator('#loading')).toBeHidden();expect(await pixels(page)).toEqual(original);
   await expect(page.getByRole('spinbutton',{name:'마스크 0 H',exact:true})).toBeDisabled();await expect(offset).toBeEnabled();
   await expect(page.locator('.error-message')).toHaveCount(0);
+});
+
+test('socket attachment draws the child pivot at the selected pose and preserves sparse rotations on backward seek',async({page})=>{
+  await choose(page,'socket-buddy.papng');await expect(page.locator('#attachment-state')).toContainText('pivot (5, 17)');
+  await expect(page.locator('#play')).toBeEnabled();
+  await expect(page.locator('#socket-pose')).toHaveText('x 29 · y 27 · r 0° · 정의 프레임 0');
+  // Child (4,3), relative to pivot (5,17), lands at parent (28,13).
+  const pixelAt=async(x:number,y:number)=>canvas(page).evaluate((c:HTMLCanvasElement,[x,y])=>Array.from(c.getContext('2d')!.getImageData(x,y,1,1).data),[x,y]);
+  await expect.poll(()=>pixelAt(28,13)).toEqual([255,195,70,255]);
+  await page.locator('#show-attachment').uncheck();expect(await pixelAt(28,13)).toEqual([0,0,0,0]);await page.locator('#show-attachment').check();
+  await seek(page,3);await expect(page.locator('#socket-pose')).toHaveText('x 30 · y 25 · r -35° · 정의 프레임 2');
+  await expect(page.locator('#overlay [data-socket="0"]')).toHaveAttribute('transform','translate(30 25) rotate(-35)');
+  const rotated=await pixels(page);await seek(page,5);await expect(page.locator('#socket-pose')).toContainText('r 0° · 정의 프레임 4');
+  await seek(page,3);await expect.poll(()=>pixels(page)).toEqual(rotated);
+  await page.locator('#socket-select').selectOption('1');await expect(page.locator('#socket-pose')).toHaveText('x 21 · y 11 · r 12.5° · 정의 프레임 2');
+  await page.locator('#clip').selectOption('raised');await expect(page.locator('#socket-pose')).toContainText('정의 프레임 2');
+  await page.locator('#show-sockets').uncheck();await expect(page.locator('#overlay g')).toHaveCount(0);
+  await page.locator('#show-sockets').check();await page.locator('#socket-select').selectOption('0');
+  await page.screenshot({path:`${artifacts}/sockets-desktop.png`,fullPage:true});
+  await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:`${artifacts}/sockets-mobile.png`,fullPage:true});
+});
+
+test('accessory animates on its own timeline and pause, restart, hue edits and resource changes control both players',async({page})=>{
+  await choose(page,'socket-buddy.papng');await expect(page.locator('#play')).toBeEnabled();
+  await page.locator('#play').click();
+  await expect.poll(()=>page.evaluate(()=>document.querySelector<HTMLCanvasElement>('#canvas')!.dataset.frame==='0' && document.querySelector<HTMLElement>('#attachment-state')!.dataset.frame!=='0'),{intervals:[15]}).toBe(true);
+  await page.locator('#play').click();await expect(page.locator('#play-state')).toHaveText('일시정지');
+  const before=await page.locator('#attachment-state').getAttribute('data-frame');
+  await page.waitForTimeout(280);await expect(page.locator('#attachment-state')).toHaveAttribute('data-frame',before!);
+  await page.locator('#restart').click();await expect(canvas(page)).toHaveAttribute('data-frame','0');await expect(page.locator('#attachment-state')).toHaveAttribute('data-frame','0');
+  await seek(page,3);const hue=page.getByRole('spinbutton',{name:'마스크 0 변화량',exact:true});await hue.fill('40');await hue.press('Tab');
+  await expect(canvas(page)).toHaveAttribute('data-frame','0');await expect(page.locator('#socket-pose')).toHaveAttribute('data-source','0');await expect(page.locator('#attachment-state')).toHaveAttribute('data-frame','0');
+  await page.locator('#play').click();await choose(page,'alpha-ribbons.papng');await expect(page.locator('#socket-panel')).toBeHidden();
+  const alone=await pixels(page);await page.waitForTimeout(200);expect(await pixels(page)).toEqual(alone);
+  await expect(page.locator('#messages p')).toHaveCount(0);
+});
+
+test('a missing accessory does not stop its parent, and optional sockets never load file paths from metadata',async({page})=>{
+  await page.route('**/samples/socket-wand.papng',route=>route.fulfill({status:404,body:''}));
+  await choose(page,'socket-buddy.papng');await expect(page.locator('#messages')).toContainText('부속 연결 실패');
+  await expect(page.locator('#play')).toBeEnabled();await page.locator('#play').click();await expect(canvas(page)).not.toHaveAttribute('data-frame','0');
+  const data=encodePapng({width:1,height:1,frames:[{rgba:Uint8Array.of(255,0,0,255)}],metadata:{schema_version:1,sockets:{definitions:[{name:'<script>socket</script>',file:'socket-wand.papng'}],frames:[{frame_index:0,positions:[[0,0]]}]}}});
+  await upload(page,data);await expect(page.locator('#file-name')).toHaveText('test.papng');
+  await expect(page.locator('#socket-select option')).toHaveText('0 · <script>socket</script>');await expect(page.locator('#show-attachment')).toBeDisabled();await expect(page.locator('#messages p')).toHaveCount(0);
+});
+
+test('hidden terminal visits keep the displayed socket, stop the accessory, and replay restarts both',async({page})=>{
+  const data=encodePapng({width:48,height:40,plays:1,frames:[{rgba:new Uint8Array(48*40*4),num:3,den:10},{rgba:new Uint8Array(48*40*4),num:0}],metadata:{schema_version:1,sockets:{definitions:[{name:'right_hand'}],frames:[{frame_index:0,positions:[[29,27]]},{frame_index:1,positions:[[1,1,90]]}]}}});
+  await page.route('**/samples/socket-buddy.papng',route=>route.fulfill({body:Buffer.from(data)}));
+  await choose(page,'socket-buddy.papng');await expect(page.locator('#play')).toBeEnabled();await page.locator('#play').click();
+  await expect(page.locator('#play-state')).toHaveText('재생 완료');await expect(canvas(page)).toHaveAttribute('data-frame','0');await expect(page.locator('#socket-pose')).toHaveAttribute('data-source','0');
+  const frame=await page.locator('#attachment-state').getAttribute('data-frame');await page.waitForTimeout(170);await expect(page.locator('#attachment-state')).toHaveAttribute('data-frame',frame!);
+  await page.locator('#play').click();await expect(page.locator('#attachment-state')).toHaveAttribute('data-frame','0');
+});
+
+test('changing samples cancels an accessory that is still downloading',async({page})=>{
+  let release!:()=>void;const released=new Promise<void>(resolve=>release=resolve);
+  await page.route('**/samples/socket-wand.papng',async route=>{await released;await route.continue().catch(()=>{});});
+  await choose(page,'socket-buddy.papng');await expect(page.locator('#attachment-state')).toHaveText('부속 파일 준비 중…');await expect(page.locator('#play')).toBeDisabled();
+  await choose(page,'palette-creature.papng');release();await expect(page.locator('#play')).toBeEnabled();await expect(page.locator('#socket-panel')).toBeHidden();
+  await page.waitForTimeout(200);await expect(page.locator('#messages p')).toHaveCount(0);await expect(page.locator('#file-name')).toHaveText('palette-creature.papng');
 });

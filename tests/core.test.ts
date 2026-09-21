@@ -25,17 +25,17 @@ function rewrite(bytes:Uint8Array, callback:(name:string,data:Uint8Array)=>Uint8
 
 test('published samples cover every v1 control, distribution, hint and optional metadata',async()=>{
   const manifest=JSON.parse(readFileSync(new URL('../samples/manifest.json',import.meta.url),'utf8'));
-  const controls=new Set<number>(),kinds=new Set<number>();let hints=false,clips=false,groups=false;
+  const controls=new Set<number>(),kinds=new Set<number>();let hints=false,clips=false,groups=false,sockets=false;
   for(const entry of manifest){
     const doc=await parsePapng(readFileSync(new URL(`../samples/${entry.file}`,import.meta.url)));
     assert.deepEqual(doc.warnings,[],entry.file);assert.equal(doc.frames.length,entry.frames);
     assert.equal(doc.width,entry.width);assert.equal(doc.height,entry.height);
     for(const list of doc.controls.values())for(const c of list)controls.add(c.type);
-    doc.distributions.forEach(d=>kinds.add(d.kind));hints ||=Object.keys(doc.hints).length===4;clips ||=!!doc.clips.length;groups ||=!!doc.groups.length;
+    doc.distributions.forEach(d=>kinds.add(d.kind));hints ||=Object.keys(doc.hints).length===4;clips ||=!!doc.clips.length;groups ||=!!doc.groups.length;sockets ||=!!doc.sockets;
     const compositor=new Compositor(doc,1024*1024,silent);
     for(let i=0;i<doc.frames.length;i++)await compositor.seek(i);
   }
-  assert.deepEqual([...controls].sort(),[0,1,2,3,4,5]);assert.deepEqual([...kinds].sort(),[0,1,2,3,4]);assert.ok(hints&&clips&&groups);
+  assert.deepEqual([...controls].sort(),[0,1,2,3,4,5]);assert.deepEqual([...kinds].sort(),[0,1,2,3,4]);assert.ok(hints&&clips&&groups&&sockets);
 });
 
 for(const interlace of [false,true])for(let filter=0;filter<=4;filter++)test(`raw RGBA preservation: filter ${filter}, Adam7 ${interlace}`,async()=>{

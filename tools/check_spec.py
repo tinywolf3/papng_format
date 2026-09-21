@@ -152,7 +152,6 @@ def check_semantics(text: str) -> None:
         triples = [(1,x,0),(x,1,0),(0,1,x),(0,x,1),(x,0,1),(1,0,x)]
         actual = tuple(int(Fraction(c) * 255 + Fraction(1,2)) for c in triples[int(q)])
         require(actual == expected, "Hue offset example")
-    require("MaskEntry" not in text and "mask_palette_count" not in text, "Obsolete mask layout")
     require("uint16 mask_count" in text and "uint32 mask_data_count" in text, "Mask layout")
     require("h_out = (h + hue_offset_degrees / 360) mod 1" in text, "Hue offset rule")
     require("**Document revision:** 1" in text or "**문서 개정:** 1" in text, "Document revision must remain 1")
@@ -162,8 +161,13 @@ def check_semantics(text: str) -> None:
     require(metadata["schema_version"] == 1, "Metadata schema")
     require(metadata["clips"][0]["start_frame"] == 0 and metadata["clips"][0]["end_frame"] == 7, "Clip example")
     require(metadata["mask_groups"][0]["palette_indices"] == [0,1,2], "Group example")
-    require("frame_type" not in text, "Obsolete control field name")
-    require("parameter_size:    uint32" not in text, "Obsolete distribution width")
+    sockets = metadata["sockets"]
+    require([d["name"] for d in sockets["definitions"]] == ["right_hand", "head"], "Socket definitions")
+    require([f["frame_index"] for f in sockets["frames"]] == [0, 3, 6], "Sparse socket records")
+    require(sockets["frames"][1]["positions"] == [[13,14,30],[8,2]], "Socket rotation example")
+    require(sockets["frames"][2]["positions"][0] == [12,15], "Default rotation resets")
+    require("uint32 control_type" in text, "Control type field")
+    require("uint24 parameter_size" in text, "Distribution parameter size")
     print("PASS: discrete weights, timing/import cases, mask examples, metadata, terminology.")
 
 

@@ -39,8 +39,8 @@ export async function decodeFrame(frame: Frame, interlace: number): Promise<Uint
   return pixels;
 }
 
-// Compute HSV from the original RGB at full floating-point precision. No S8/V8
-// serialization or quantization occurs. Identity edits bypass conversion entirely.
+// Compute HSV from the original RGB at full floating-point precision.
+// Identity edits bypass conversion entirely.
 export function shiftHue(r: number, g: number, b: number, degrees: number): [number, number, number] {
   const delta = ((degrees % 360) + 360) % 360;
   if (delta === 0) return [r,g,b];

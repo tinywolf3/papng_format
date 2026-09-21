@@ -89,10 +89,10 @@
   {
     "file": "300-frame-spectrum.papng",
     "title": "300개의 작은 순간",
-    "subtitle": "1 × 1 캔버스 · 프레임 256을 넘어",
+    "subtitle": "1 × 1 캔버스 · 300프레임의 색상 변화",
     "features": [
       "1x1",
-      "over-256-frames",
+      "300-frames",
       "ordinary-rgba",
       "finite-plays",
       "empty-palettes"
@@ -104,16 +104,48 @@
   {
     "file": "alpha-ribbons.papng",
     "title": "하나의 마스크, 일곱 알파",
-    "subtitle": "원본 알파 0·1·32·64·128·192·255와 마스크 공유",
+    "subtitle": "픽셀별 투명도 · 두 색상을 묶은 마스크 공유",
     "features": [
       "mask16",
       "per-pixel-alpha",
-      "alpha-one",
       "original-hue-variation",
       "shared-maps"
     ],
     "frames": 4,
     "width": 28,
     "height": 14
+  },
+  {
+    "file": "socket-buddy.papng",
+    "title": "소켓 친구",
+    "subtitle": "손과 머리 소켓 · 회전하는 별빛 지팡이",
+    "features": [
+      "sockets",
+      "rotation",
+      "sparse-poses",
+      "pivot-attachment",
+      "independent-animation"
+    ],
+    "attachment": {
+      "file": "socket-wand.papng",
+      "socket": "right_hand"
+    },
+    "frames": 6,
+    "width": 48,
+    "height": 40
+  },
+  {
+    "file": "socket-wand.papng",
+    "title": "별빛 지팡이",
+    "subtitle": "부속 PAPNG · 손잡이 pivot · 독립적인 반짝임",
+    "features": [
+      "attachment-resource",
+      "pivot",
+      "independent-animation",
+      "per-pixel-alpha"
+    ],
+    "frames": 4,
+    "width": 10,
+    "height": 20
   }
 ]

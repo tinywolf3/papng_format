@@ -14,8 +14,6 @@ This document defines version 1.0 of PAPNG, an APNG-based format for editable pi
 
 PAPNG is an independent format specification. This document does not claim endorsement by W3C, IETF, or a registration authority. It defines no new Internet media type.
 
-This initial 1.0 definition replaces the repository's earlier unpublished alpha-marker draft; that draft is not an alternative encoding of this specification. The format version remains 1.0 and document revision remains 1.
-
 ## Contents
 
 - [1. Scope](#1-scope)
@@ -44,9 +42,9 @@ PAPNG preserves original RGBA in APNG and adds shared 16-bit mask planes, reusab
 
 A conforming PAPNG file MUST satisfy the PNG/APNG container requirements in [PNG3](#references), together with this specification. Standard image compression, filtering, interlacing, chunk integrity, and APNG frame data remain governed by PNG3.
 
-A PAPNG writer MUST use 8-bit samples and PNG color type 6: four bytes per stored pixel, in RGBA order. Every canvas dimension MUST be positive. PAPNG imposes no additional canvas-size or animation-frame-count ceiling beyond the underlying container and the representable fields.
+A PAPNG writer MUST use 8-bit samples and PNG color type 6: four bytes per stored pixel, in RGBA order. Every canvas dimension MUST be positive. Canvas dimensions and animation frame counts follow the PNG/APNG container and the ranges of their respective fields.
 
-PAPNG MUST NOT store extension data in a synthetic animation frame. All animation frames are content frames, including frames that are composited without being presented.
+Extension data MUST be stored in the chunks defined by this specification. All animation frames are content frames, including frames that are composited without being presented.
 
 Ordinary APNG viewers decode the original colors and per-pixel alpha. They need not apply runtime hue offsets or PAPNG timing and controls, so edited appearance and playback can differ. Recognition of the `.papng` filename extension is application-dependent.
 
@@ -88,7 +86,7 @@ The name identifies an ancillary, private, reserved-bit-conforming, unsafe-to-co
 
 The chunk MUST follow `IHDR` and precede the first `IDAT`. It need not have a particular order relative to other ancillary chunks, except where PNG3 requires one.
 
-A file MUST contain an APNG animation, including for a single-frame resource. The animation frame count is the APNG content-frame count; no metadata frame is included.
+A file MUST contain an APNG animation, including for a single-frame resource. The animation frame count is the APNG content-frame count.
 
 A reader MUST inspect the `paEX` identifier and version rather than infer PAPNG semantics solely from a filename. The identifier is the following eight bytes:
 
@@ -194,9 +192,9 @@ An invalid hint MUST be ignored independently of valid hints.
 
 ### 6.1 Original RGBA and mask indices
 
-Every stored image sample MUST remain original, unassociated RGBA8. No alpha value is reserved: alpha 1 is an ordinary alpha value. Mask membership MUST NOT be encoded into RGB or alpha channels. Different pixels in one mask MAY have different RGB and alpha values.
+Every stored image sample MUST remain original, unassociated RGBA8. Mask membership MUST be stored in the separate mask planes defined in Section 6.2. Different pixels in one mask MAY have different RGB and alpha values.
 
-`mask_count` declares resource-wide logical mask slots, not serialized palette entries and not the maximum number of distinct masks in a single frame. A valid index satisfies `0 <= mask_index < mask_count`. The same index refers to the same logical mask across frames. No hue, alpha, saturation, value, or hue offset is stored for a slot. An application supplies a finite hue offset in degrees per index; the default for every index is zero.
+`mask_count` declares the number of resource-wide logical mask slots. A valid index satisfies `0 <= mask_index < mask_count`. The same index refers to the same logical mask across frames. An application supplies a finite hue offset in degrees per index; the default for every index is zero.
 
 A mask plane contains one big-endian `uint16` per source-frame pixel, in row-major order from the top left. The highest bit is the membership flag and the lower 15 bits are the index:
 
@@ -244,7 +242,7 @@ A bad `paMD` CRC, duplicate chunk, or invalid chunk position MUST disable all ma
 
 ### 6.3 Hue offsets and color conversion
 
-Hue offsets are runtime rendering parameters, not file fields. Missing offsets default to zero. A non-finite offset MUST produce a warning and be treated as zero. Offsets MUST be normalized modulo 360 degrees. An unassigned pixel or a zero normalized offset MUST preserve its four original bytes exactly, without an HSV round trip. The source alpha byte MUST remain unchanged for every offset, including alpha 0 and 1.
+Hue offsets are runtime rendering parameters, not file fields. Missing offsets default to zero. A non-finite offset MUST produce a warning and be treated as zero. Offsets MUST be normalized modulo 360 degrees. An unassigned pixel or a zero normalized offset MUST preserve its four original bytes exactly, without an HSV round trip. The source alpha byte MUST remain unchanged for every offset.
 
 For an assigned pixel with a nonzero offset, use the original encoded RGB samples before color management, alpha premultiplication, resampling, and APNG compositing. RGB is not linearized. Let `r`, `g`, and `b` be the source bytes divided by 255, `m = min(r,g,b)`, `v = max(r,g,b)`, and `d = v-m`.
 
@@ -261,7 +259,7 @@ v_out = v
 alpha_out = original_alpha
 ```
 
-H, S, and V MUST NOT be quantized into integer storage fields. For HSV-to-RGB conversion, calculate `c = v*s`, `q = 6*h_out`, `x = c*(1-abs((q mod 2)-1))`, and `m = v-c`. Select a triple by `floor(q)`:
+H, S, and V MUST be calculated with fractional precision. For HSV-to-RGB conversion, calculate `c = v*s`, `q = 6*h_out`, `x = c*(1-abs((q mod 2)-1))`, and `m = v-c`. Select a triple by `floor(q)`:
 
 ```text
 0: (c, x, 0)    1: (x, c, 0)    2: (0, c, x)
@@ -384,7 +382,7 @@ Types 6 and above are reserved. Version 1.0 permits at most one control per fram
 
 A frame without a control uses its APNG delay and the sequential successor.
 
-Control association MUST NOT repurpose APNG delay fields as indices or sentinels. Adding or changing a PAPNG control leaves the underlying APNG delay fields unchanged, unless the author separately edits that base timing or applies the import normalization in Section 11.
+Controls MUST be associated with animation frames through `frame_index`. Adding or changing a PAPNG control leaves the underlying APNG delay fields unchanged, unless the author separately edits that base timing or applies the import normalization in Section 11.
 
 ### 8.2 Delay arithmetic
 
@@ -392,7 +390,7 @@ A delay is a rational number of seconds, `numerator / effective_denominator`. A 
 
 A positive rational duration MUST NOT become a hidden frame because it rounds to zero in an implementation's clock unit. Timing accumulation SHOULD retain fractional precision.
 
-An effective numerator of zero invokes the hidden-frame rules in Section 9.4. It is not an error or an extension-record marker.
+An effective numerator of zero invokes the hidden-frame rules in Section 9.4.
 
 ### 8.3 Type 0: FIXED_DELAY
 
@@ -545,7 +543,7 @@ The optional `iTXt` keyword MUST be exactly `PAPNG.Metadata`. The text is a UTF-
 
 Object member names MUST be unique. Unknown members MUST be ignored by readers. Recognized members MUST have their specified types; booleans are not accepted as numeric values.
 
-The top-level object MUST contain integer `schema_version: 1`. The optional arrays `clips` and `mask_groups` default to empty. This schema version is separate from the binary format version.
+The top-level object MUST contain integer `schema_version: 1`. The optional arrays `clips` and `mask_groups` default to empty. The optional `sockets` object is defined in Section 10.4. This schema version is separate from the binary format version.
 
 ### 10.2 Animation clips
 
@@ -575,7 +573,37 @@ Each mask group has:
 
 Indices MUST be less than `mask_count` and MUST be unique within one group. Different groups MAY overlap. An empty group is permitted. A group is organizational metadata and does not change pixel decoding by itself.
 
-### 10.4 Example and recovery
+### 10.4 Sockets
+
+The optional `sockets` object defines named points and orientations for attaching other objects. Its absence means no sockets. Both `definitions` and `frames` arrays MUST be present. Readers supporting sockets follow the interpretation and recovery rules in this section; core readers MAY ignore this entire object.
+
+**Definitions and indices.** Each entry in `definitions` MUST be an object with a nonempty string `name`. Its zero-based array position is the socket index; no separate `index` field is stored. Names and indices are shared across the entire animation. Names MUST be unique, compared exactly and case-sensitively without normalization. Definition order is fixed within the file. If there are no definitions, `frames` MUST also be empty.
+
+**Frame records.** Each entry in `frames` is an object with integer `frame_index` and array `positions`. The index is an animation frame number from Section 3.2, not an APNG sequence number, and MUST satisfy `0 <= frame_index < frame_count`. Writers MUST store records in ascending frame order without duplicates. If any sockets exist, a frame 0 record MUST be present.
+
+Each `positions` array MUST have the same length as `definitions`, with matching array positions. A record redefines every socket at once; partial per-socket updates are not allowed. Each position is exactly `[x, y, r]` or `[x, y]`. With two elements, `r` is 0 for that record; it does not inherit a previous rotation. Nulls and missing entries are not allowed.
+
+`x`, `y`, and `r` MUST be JSON numbers representable as finite IEEE 754 binary64 values. Fractions and negative values are allowed. Coordinates are measured in original canvas pixels. The origin is the top-left corner, +x points right, and +y points down; integer coordinates lie on pixel boundaries. Pixel centers can be expressed with half-integer coordinates. The partial-frame `fcTL` offset, bounding box, display scale, and pivot are not subtracted from these coordinates. Coordinates outside the canvas are allowed and are not automatically clamped or rounded.
+
+`r` is measured in degrees, with **positive values clockwise**. Zero means no rotation; negative, fractional, and out-of-range values are allowed. An implementation can normalize the orientation modulo 360 when using it. Rotation describes the socket orientation and does not rotate its own `(x, y)` position.
+
+**Inheritance.** For frame `f`, use the entire `positions` array of the valid record with the greatest `frame_index <= f`. Frames without records hold these values without interpolation. This is independent of the last frame visited during playback. The same rule MUST apply to backward and random jumps, direct seeks, and clip entry. Records before the clip start remain eligible. Sockets do not participate in pixel blending or disposal and do not require presenting a zero-delay frame. A host displaying an attached image uses the sockets belonging to the currently presented image's frame.
+
+**Recovery.** An invalid object/array structure, invalid definitions, or absence of a valid frame 0 record MUST disable only the sockets object with a warning. An invalid individual frame record MUST be ignored in its entirety with a warning, never partially accepted. For duplicate indices, the first valid record in file order wins, with a warning. Even for out-of-order input, lookup MUST use numeric frame order. This recovery MUST NOT disable valid clips, mask groups, or core playback.
+
+**Attachment example — informative.** To align a child PAPNG's pivot with a parent socket `(x, y, r)`, use the following transform. Child points and pivot are in the child's original canvas coordinates. Apply the parent's scene transform to the result.
+
+```text
+u = child_x - pivot_x
+v = child_y - pivot_y
+theta = (r mod 360) * pi / 180
+parent_x = x + cos(theta) * u - sin(theta) * v
+parent_y = y + sin(theta) * u + cos(theta) * v
+```
+
+The pivot itself always maps to the socket's `(x, y)` regardless of rotation. The host chooses a fallback for an absent pivot, scale and reflection, layer order, accessory resources, and playback synchronization. Each PAPNG can retain its own delays and frame controls. `sockets` defines neither external file paths nor automatic loading rules.
+
+### 10.5 Example and recovery
 
 The following is informative and assumes at least eight frames and three mask slots:
 
@@ -597,7 +625,40 @@ The following is informative and assumes at least eight frames and three mask sl
       "name": "Hair",
       "palette_indices": [0, 1, 2]
     }
-  ]
+  ],
+  "sockets": {
+    "definitions": [
+      {
+        "name": "right_hand"
+      },
+      {
+        "name": "head"
+      }
+    ],
+    "frames": [
+      {
+        "frame_index": 0,
+        "positions": [
+          [12, 15],
+          [8, 3]
+        ]
+      },
+      {
+        "frame_index": 3,
+        "positions": [
+          [13, 14, 30],
+          [8, 2]
+        ]
+      },
+      {
+        "frame_index": 6,
+        "positions": [
+          [12, 15],
+          [8, 3]
+        ]
+      }
+    ]
+  }
 }
 ```
 
@@ -609,7 +670,7 @@ Missing or ignored metadata MUST NOT prevent core image decoding or full-animati
 
 Import normalization applies to conversion from an ordinary image, not to loading an existing PAPNG resource.
 
-An importer MUST convert source samples to unassociated RGBA8. It MUST preserve all resulting RGBA bytes, including alpha 1, when adding mask membership. No channel value is reserved for masks.
+An importer MUST convert source samples to unassociated RGBA8. It MUST preserve all resulting RGBA bytes when adding mask membership.
 
 For each ordinary APNG frame:
 
@@ -642,6 +703,7 @@ Container errors remain subject to PNG3. Recovery is not a promise to reconstruc
 | Invalid control payload, range, target, or reserved control type | Warn; use control recovery |
 | Control refers to a nonexistent frame | Warn; ignore the record |
 | Duplicate controls for an existing frame | Warn; first valid record wins |
+| Invalid socket definitions or frame records | Warn; ignore only the sockets object or affected record as in Section 10.4 |
 | Invalid optional text metadata | Warn; ignore the affected metadata as in Section 10 |
 
 **Control recovery** means presenting the frame for exactly 10 ms and taking its sequential successor. The underlying APNG delay and movement override are not used for that failed control.
@@ -675,6 +737,8 @@ An editor that changes frame order or removes frames MUST update control keys, a
 An editor that renumbers or removes logical masks MUST update mask-array indices, `mask_count`, and mask-group references. An editor that reorders or removes mask-data entries MUST update every frame binding. Changing one frame's shared map MUST NOT modify unrelated frames: create a separate map when their membership should differ.
 
 Ordinary PNG/APNG editing tools are not required to understand these relationships. The unsafe-to-copy chunk property is not a guarantee of a valid editing round trip, particularly when animation or text metadata is changed. PAPNG-aware tools SHOULD validate all extension references before saving.
+
+When editing sockets, changing or removing definitions MUST update every `positions` array and attachment references managed by the host. Frame insertion, deletion, or reordering MUST first resolve existing inherited values, then rewrite socket records to preserve intended values in the new frame order. Merely moving numeric keys MUST NOT change the intended inherited poses. Cropping or shifting the origin MUST update socket coordinates and pivot to the new original canvas coordinates.
 
 ## 14. Implementation considerations
 
@@ -764,7 +828,7 @@ To place this data in a PNG stream, write a PNG chunk length of 63, chunk type `
 
 ### A.5 Original alpha and hue offsets
 
-For `mask_count = 32768`, words `80 00` and `FF FF` select masks 0 and 32767 respectively. `00 00` leaves a pixel unassigned. Original pixel `FF 00 00 01` remains exactly unchanged when its offset is zero. At +180 degrees it becomes `00 FF FF 01`; alpha 1 is preserved. Other pixels with the same mask index retain their own original alpha and relative hue differences. Offset edits require the restart in Section 6.4.
+For `mask_count = 32768`, words `80 00` and `FF FF` select masks 0 and 32767 respectively. `00 00` leaves a pixel unassigned. Original pixel `FF 00 00 80` remains exactly unchanged when its offset is zero. At +180 degrees it becomes `00 FF FF 80`, changing translucent red to cyan with the same alpha. Other pixels with the same mask index retain their own original alpha and relative hue differences. Offset edits require the restart in Section 6.4.
 
 ### A.6 Shared mask data
 
@@ -819,7 +883,7 @@ The same definition is invalid for a delay numerator because the positive-weight
 
 This appendix is informative.
 
-Original RGBA8 is stored without HSV quantization. With zero hue offsets, the mask operation has zero source-byte error, including alpha 0 and 1. APNG compositing, display color management, and the presentation surface are separate operations; this statement does not imply every composited pixel equals an individual source pixel.
+Image samples are stored as original RGBA8. With zero hue offsets, the mask operation preserves the source bytes exactly. APNG compositing, display color management, and the presentation surface are separate operations; this statement does not imply every composited pixel equals an individual source pixel.
 
 For a nonzero offset, the deliberate hue change is evaluated from original RGB at full precision. The final RGB8 rounding error is at most half a channel step relative to the ideal real-valued transformed channel; floating-point implementations should handle rounding boundaries carefully. Alpha is copied exactly. Repeated edits do not accumulate error when each starts from the original pixels.
 

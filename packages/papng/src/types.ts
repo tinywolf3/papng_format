@@ -3,6 +3,9 @@ export interface Distribution { kind: number; items?: { value: number; weight: n
 export interface Control { frame: number; type: number; values: number[]; valid: boolean }
 export interface Clip { id: string; name: string; start: number; end: number; plays: number }
 export interface MaskGroup { id: string; name: string; indices: number[] }
+export type SocketPosition = [x: number, y: number, rotation: number];
+export interface SocketFrame { frame: number; positions: SocketPosition[] }
+export interface Sockets { names: string[]; frames: SocketFrame[] }
 export interface Hints { display?: [number, number]; bbox?: [number, number, number, number]; scale?: number; pivot?: [number, number] }
 export interface Frame {
   width: number; height: number; x: number; y: number;
@@ -12,7 +15,7 @@ export interface Frame {
 export interface Papng {
   width: number; height: number; plays: number; interlace: number;
   frames: Frame[]; maskCount: number; maskData: MaskData[]; frameMasks: Map<number, number>; distributions: Distribution[];
-  controls: Map<number, Control[]>; clips: Clip[]; groups: MaskGroup[];
+  controls: Map<number, Control[]>; clips: Clip[]; groups: MaskGroup[]; sockets?: Sockets;
   hints: Hints; warnings: string[]; byteLength: number;
 }
 export type Warn = (message: string) => void;
