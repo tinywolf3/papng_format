@@ -22,7 +22,12 @@ PAPNG는 게임용 픽셀아트 리소스의 편집·저장·공유를 위한 **
 
 **한국어 명세가 기본이자 기준 문서입니다.** 두 언어판 사이에 해석 차이가 있으면 한국어판을 따릅니다. 명세는 Markdown으로 관리합니다.
 
-현재 저장소에는 명세와 문서 검증 도구가 있습니다. 정식 디코더와 플레이어 구현은 아직 제공하지 않습니다.
+### 샘플과 웹 뷰어
+
+- [기능별 PAPNG 샘플 6개](samples/README.md): 마스크 색상, 모든 분포·프레임 제어, 숨김 프레임 합성, 부분 프레임 복원과 메타데이터를 확인할 수 있습니다.
+- [TypeScript 웹 뷰어](demos/web/viewer/README.md): 로컬 파일 재생, 마스크 H16 편집, 클립 선택과 점프 대상 우선 캐시를 시험할 수 있습니다.
+
+Node.js 22.12 이상에서 `npm ci` 후 `npm run dev`로 실행합니다. 디코더와 플레이어는 포맷 동작을 확인하기 위한 실험용 구현입니다.
 
 ### 문서 검증
 
@@ -49,7 +54,14 @@ It adds a shared hue/alpha mask palette, reusable random distributions, frame pl
 - [PAPNG 1.0 — Korean normative specification](spec/PAPNG-1.0.ko.md)
 - [PAPNG 1.0 — English translation](spec/PAPNG-1.0.en.md)
 
-**The Korean specification is the default and normative edition.** If the editions differ in interpretation, the Korean edition takes precedence. Specifications are maintained in Markdown. This repository currently provides the specifications and their validation tool; a production decoder and player are not yet included.
+**The Korean specification is the default and normative edition.** If the editions differ in interpretation, the Korean edition takes precedence. Specifications are maintained in Markdown.
+
+### Samples and viewer
+
+- [Six PAPNG samples](samples/README.md) demonstrate mask colors, every distribution and control type, hidden-frame composition, partial-frame restoration, and metadata.
+- The [TypeScript web viewer](demos/web/viewer/README.md) provides local playback, H16 palette editing, clip selection, and a cache that favors jump targets.
+
+With Node.js 22.12 or later, run `npm ci` and `npm run dev`. The decoder and player are experimental implementations for exploring the format.
 
 ### Documentation checks
 

@@ -1,0 +1,102 @@
+[
+  {
+    "file": "palette-creature.papng",
+    "title": "팔레트 정원",
+    "subtitle": "같은 명암, 다른 색상각",
+    "features": [
+      "mask-palette",
+      "alpha",
+      "display",
+      "bbox",
+      "scale",
+      "pivot",
+      "clips",
+      "mask-groups"
+    ],
+    "frames": 8,
+    "width": 24,
+    "height": 24
+  },
+  {
+    "file": "distribution-beats.papng",
+    "title": "확률의 박자",
+    "subtitle": "다섯 분포가 바꾸는 머무는 시간",
+    "features": [
+      "FIXED_DELAY",
+      "RANDOM_DELAY",
+      "UNIFORM",
+      "TRIANGULAR",
+      "FAVOR_LOW",
+      "FAVOR_HIGH",
+      "WEIGHTED_VALUES",
+      "den-zero"
+    ],
+    "frames": 6,
+    "width": 24,
+    "height": 24
+  },
+  {
+    "file": "jump-orbit.papng",
+    "title": "점프 궤도",
+    "subtitle": "상대·절대·랜덤 이동과 재방문",
+    "features": [
+      "RELATIVE_JUMP",
+      "ABSOLUTE_MOVE",
+      "RANDOM_RELATIVE_JUMP",
+      "RANDOM_ABSOLUTE_MOVE",
+      "backward",
+      "self-target",
+      "target-cache"
+    ],
+    "frames": 8,
+    "width": 24,
+    "height": 24
+  },
+  {
+    "file": "hidden-growth.papng",
+    "title": "보이지 않는 준비",
+    "subtitle": "0 지연 프레임 세 장이 나무를 완성",
+    "features": [
+      "zero-delay",
+      "partial-frames",
+      "SOURCE",
+      "OVER",
+      "BACKGROUND",
+      "finite-plays"
+    ],
+    "frames": 5,
+    "width": 16,
+    "height": 16
+  },
+  {
+    "file": "restore-previous.papng",
+    "title": "유리와 잔상",
+    "subtitle": "반투명 OVER와 PREVIOUS 상태 복원",
+    "features": [
+      "PREVIOUS",
+      "OVER",
+      "partial-frames",
+      "interlace",
+      "compressed-metadata",
+      "backward"
+    ],
+    "frames": 3,
+    "width": 16,
+    "height": 16
+  },
+  {
+    "file": "300-frame-spectrum.papng",
+    "title": "300개의 작은 순간",
+    "subtitle": "1 × 1 캔버스 · 프레임 256을 넘어",
+    "features": [
+      "1x1",
+      "over-256-frames",
+      "ordinary-rgba",
+      "finite-plays",
+      "empty-palettes"
+    ],
+    "frames": 300,
+    "width": 1,
+    "height": 1
+  }
+]

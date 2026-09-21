@@ -1,0 +1,15 @@
+---
+description: PAPNG 구현과 데모의 플랫폼별 빌드 출력 위치
+alwaysApply: true
+---
+
+# 빌드 출력
+
+- 명세 문서를 제외한 PAPNG 개발 결과물 중 빌드가 필요한 앱·라이브러리는 저장소 최상단 `builds/<platform>/<app-name>/` 아래에 출력한다.
+- 플랫폼 이름은 `web`, `linux`, `android` 등 실제 대상을 사용한다.
+- 웹 뷰어의 배포 출력은 `builds/web/viewer/`이다.
+- 빌드 명령의 정리 작업은 해당 앱의 출력 디렉터리만 대상으로 한다.
+- `/builds/` 전체는 Git에서 제외한다. 소스와 설정, 잠금 파일은 추적한다.
+- 테스트 보고서와 스크린샷은 `builds/<platform>/<app-name>-tests/`에 둔다.
+- `samples/`의 PAPNG 파일은 공유용 원본 리소스이므로 생성기와 함께 추적한다.
+- 명세는 Markdown으로 유지하며 명세용 HTML 빌드를 추가하지 않는다.
