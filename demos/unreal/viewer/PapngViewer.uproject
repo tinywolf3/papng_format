@@ -1,0 +1,11 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "Image viewers",
+  "Description": "Standalone PAPNG, APNG and PNG viewer",
+  "Modules": [
+    { "Name": "PapngCore", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "PapngViewer", "Type": "Runtime", "LoadingPhase": "Default" }
+  ],
+  "DisableEnginePluginsByDefault": true
+}
