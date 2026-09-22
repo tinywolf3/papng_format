@@ -138,3 +138,11 @@ npm run build
 ```
 
 `npm run check`는 공개 소스의 TypeScript 타입을 검사합니다.
+
+## GitHub Pages 배포
+
+[공개 웹뷰어](https://tinywolf3.github.io/papng_format/)는 `main`에 push할 때 GitHub Actions에서 빌드·배포합니다. Actions의 **Deploy web viewer to Pages**를 수동 실행할 수도 있습니다. 수동 배포는 `main`에서만 실행됩니다.
+
+저장소 Settings → Pages → Build and deployment → Source는 **GitHub Actions**로 설정합니다. 배포 설정은 [pages.yml](../../../.github/workflows/pages.yml)에 있으며 Node.js 24에서 `npm ci`와 `npm run build`를 실행합니다. `builds/web/viewer/`만 Pages에 업로드하므로 빌드 결과를 커밋할 필요가 없습니다. 샘플·Worker·웹 자산은 이 디렉터리에 함께 포함됩니다.
+
+원본 명세는 Markdown으로 유지합니다. 선택한 로컬 파일은 브라우저에서 처리하며 업로드하지 않습니다.

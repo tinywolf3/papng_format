@@ -25,6 +25,8 @@ PAPNG는 게임용 픽셀아트 리소스의 편집·저장·공유를 위한 **
 
 ### 샘플과 편집기·뷰어
 
+[웹뷰어 데모 바로 열기](https://tinywolf3.github.io/papng_format/) — 설치 없이 샘플을 재생하고 마스크 색상을 바꿔 볼 수 있습니다.
+
 - [기능별 PAPNG 샘플 9개](samples/README.md): 마스크 색상, 모든 분포·프레임 제어, 숨김 프레임 합성, 부분 프레임 복원과 메타데이터를 확인할 수 있습니다.
 - [Godot 픽셀 편집기](demos/godot/editor/README.md): Linux·Windows·Android용 픽셀·마스크 편집, 프레임·소켓·클립 구성, 이미지 가져오기와 PAPNG 저장을 지원합니다.
 - [Godot 이미지 뷰어](demos/godot/viewer/README.md): Linux·Windows·Android용 파일 선택·연결 프로그램, 마스크 색상 변경, 위치 표시와 소켓 부속 미리보기를 지원합니다.
@@ -52,6 +54,8 @@ It preserves original RGBA and adds independently compressed, shareable 16-bit m
 **The Korean specification is the default and normative edition.** If the editions differ in interpretation, the Korean edition takes precedence. Specifications are maintained in Markdown.
 
 ### Samples, editor and viewers
+
+[Open the web viewer demo](https://tinywolf3.github.io/papng_format/) to play samples and adjust mask colors without installation.
 
 - [Nine PAPNG samples](samples/README.md) demonstrate mask colors, every distribution and control type, hidden-frame composition, partial-frame restoration, and socket attachments.
 - The [Godot pixel editor](demos/godot/editor/README.md) provides Linux/Windows/Android pixel and mask editing, animation authoring, image import, and PAPNG saving.
