@@ -159,12 +159,17 @@ func raw(frame: int) -> PackedByteArray:
 		source_cache[frame] = bytes; source_bytes += bytes.size()
 	return bytes
 
-static func adjustment(value) -> Vector3:
-	var scalar = 0.0 if value is Vector3 else float(value)
-	var result = value if value is Vector3 else Vector3(fposmod(scalar,360.0) if is_finite(scalar) else 0,0,0)
+static func adjustment(value) -> PackedFloat64Array:
+	# Keep host-authored decimal offsets at GDScript float precision. Vector3 is
+	# accepted for existing callers, but its components may already be float32.
+	var result := PackedFloat64Array([0.0,0.0,0.0])
+	if value is PackedFloat64Array or value is PackedFloat32Array or value is Array or value is Vector3:
+		for i in mini(3,value.size() if not value is Vector3 else 3): result[i]=float(value[i])
+	else:
+		result[0]=float(value)
 	for i in 3:
-		if not is_finite(result[i]): result[i]=0
-	result.x=fposmod(result.x,360.0); result.y=clampf(result.y,-1,1); result.z=clampf(result.z,-1,1)
+		if not is_finite(result[i]): result[i]=0.0
+	result[0]=fposmod(result[0],360.0); result[1]=clampf(result[1],-1,1); result[2]=clampf(result[2],-1,1)
 	return result
 
 static func hue(r: int, g: int, b: int, degrees: float, ds: float = 0, dv: float = 0) -> PackedByteArray:
@@ -211,10 +216,15 @@ func draw_frame(index: int):
 			var word = 0 if mask.is_empty() else (mask[s/2]<<8)|mask[s/2+1]
 			var assigned = (word & 0x8000) != 0
 			var setting = offsets.get(word & 0x7fff,0.0) if assigned else 0.0
-			var finite = setting.is_finite() if setting is Vector3 else is_finite(float(setting))
+			var finite = true
+			if setting is PackedFloat64Array or setting is PackedFloat32Array or setting is Array:
+				for component in setting:
+					if not is_finite(float(component)): finite=false; break
+			elif setting is Vector3: finite=setting.is_finite()
+			else: finite=is_finite(float(setting))
 			if not finite: doc.warn("유한하지 않은 HSV 변화량: 해당 성분을 0으로 복구")
 			var delta = adjustment(setting)
-			var rgb = hue(source[s],source[s+1],source[s+2],delta.x,delta.y,delta.z)
+			var rgb = hue(source[s],source[s+1],source[s+2],delta[0],delta[1],delta[2])
 			var sa = source[s+3]/255.0; var da = state.pixels[dest+3]/255.0
 			var a = sa+da*(1-sa)
 			if f.blend == 0 or source[s+3] == 255:

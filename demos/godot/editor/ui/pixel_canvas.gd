@@ -100,8 +100,8 @@ func refresh():
 		for pos in range(0,f.mask.size(),2):
 			if f.mask[pos]&0x80:
 				var offset=model.Player.adjustment(hue_offsets.get(((f.mask[pos]<<8)|f.mask[pos+1])&0x7fff,0))
-				if offset!=Vector3.ZERO:
-					var at=pos*2; var rgb=model.Player.hue(source[at],source[at+1],source[at+2],offset.x,offset.y,offset.z)
+				if offset!=PackedFloat64Array([0.0,0.0,0.0]):
+					var at=pos*2; var rgb=model.Player.hue(source[at],source[at+1],source[at+2],offset[0],offset[1],offset[2])
 					for c in 3: source[at+c]=rgb[c]
 	texture=ImageTexture.create_from_image(Image.create_from_data(f.width,f.height,false,Image.FORMAT_RGBA8,source))
 	ghost=ImageTexture.create_from_image(model.image(model.selected-1)) if onion and model.selected>0 else null

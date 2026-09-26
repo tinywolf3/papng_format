@@ -158,8 +158,8 @@ func update_color_selection():
 	color_dialog.get_ok_button().disabled = not usable
 	color_name.text = name if usable else name + " · 유효한 픽셀이 없습니다"
 	var delta = Session.Player.adjustment(offsets[color_target.selected].get(id,0.0))
-	color_adjustments[0].set_value_no_signal(fposmod(delta.x+180.0,360.0)-180.0)
-	color_adjustments[1].set_value_no_signal(delta.y); color_adjustments[2].set_value_no_signal(delta.z)
+	color_adjustments[0].set_value_no_signal(fposmod(delta[0]+180.0,360.0)-180.0)
+	color_adjustments[1].set_value_no_signal(delta[1]); color_adjustments[2].set_value_no_signal(delta[2])
 	sync_color_swatch()
 	if not view.info.is_empty() and color_target.selected == 0: session.send({"type":"select_mask","index":id})
 
@@ -182,7 +182,7 @@ func show_colors():
 
 func apply_color():
 	var id = int(color_index.value)
-	var delta = Vector3(color_adjustments[0].value,color_adjustments[1].value,color_adjustments[2].value)
+	var delta = PackedFloat64Array([color_adjustments[0].value,color_adjustments[1].value,color_adjustments[2].value])
 	offsets[color_target.selected][id] = delta
 	session.send({"type":"hue","index":id,"offset":delta,"child":color_target.selected == 1})
 

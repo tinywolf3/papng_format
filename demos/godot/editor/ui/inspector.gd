@@ -181,9 +181,9 @@ func sync_mask():
 	for group in model().metadata().get("mask_groups",[]):
 		if group.palette_indices==[float(id)] or group.palette_indices==[id]: name=group.get("name",group.id); break
 	var delta = host.Player.adjustment(host.hues.get(id,0))
-	mask_name.text=name; hue.set_value_no_signal(fposmod(delta.x+180.0,360.0)-180.0)
-	saturation.set_value_no_signal(delta.y); brightness.set_value_no_signal(delta.z)
-	var source=host.mask_reference(id); original_color.color=source; shifted_color.color=Color.from_hsv(fposmod(source.h+delta.x/360.0,1),clampf(source.s+delta.y,0,1),clampf(source.v+delta.z,0,1))
+	mask_name.text=name; hue.set_value_no_signal(fposmod(delta[0]+180.0,360.0)-180.0)
+	saturation.set_value_no_signal(delta[1]); brightness.set_value_no_signal(delta[2])
+	var source=host.mask_reference(id); original_color.color=source; shifted_color.color=Color.from_hsv(fposmod(source.h+delta[0]/360.0,1),clampf(source.s+delta[1],0,1),clampf(source.v+delta[2],0,1))
 func add_mask():
 	if model().mask_count>=32768: host.notify("마스크 한도에 도달했습니다."); return
 	host.edit("마스크 추가",func(): model().mask_count+=1; model().touch())

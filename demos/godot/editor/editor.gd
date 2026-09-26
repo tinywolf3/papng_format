@@ -245,9 +245,9 @@ func move_frame(delta: int):
 	edit("프레임 순서",func(): var order=range(model.frames.size()); var old=order[model.selected]; order[model.selected]=order[target]; order[target]=old; action_error=FrameEdit.remap(model,order))
 func set_hue(id: int, degrees: float):
 	var delta = Player.adjustment(hues.get(id,0))
-	set_hsv(id,degrees,delta.y,delta.z)
+	set_hsv(id,degrees,delta[1],delta[2])
 func set_hsv(id: int, degrees: float, saturation: float, value: float):
-	stop_playback(); hues[id]=Player.adjustment(Vector3(degrees,saturation,value)); canvas.hue_offsets=hues; canvas.refresh(); preview_dirty=true; inspector.sync_mask()
+	stop_playback(); hues[id]=Player.adjustment(PackedFloat64Array([degrees,saturation,value])); canvas.hue_offsets=hues; canvas.refresh(); preview_dirty=true; inspector.sync_mask()
 func mask_reference(id: int) -> Color:
 	if refs.has(id): return refs[id]
 	var sum=Vector3.ZERO; var weight=0.0
