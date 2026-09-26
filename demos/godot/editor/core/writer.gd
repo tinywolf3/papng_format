@@ -17,7 +17,7 @@ static func pixels(frame: Dictionary) -> PackedByteArray:
 static func extension(model) -> PackedByteArray:
 	var h = model.hints
 	var flags = int(h.has("display")) | (int(h.has("bbox"))<<1) | (int(h.has("scale"))<<2) | (int(h.has("pivot"))<<3)
-	var out = PackedByteArray([80,65,80,78,71,0,0,0])+packed([1,0,56,flags],[2,2,4,4])
+	var out = PackedByteArray([80,65,80,78,71,0,0,0])+packed([1,1,56,flags],[2,2,4,4])
 	var fields = h.get("display",[0,0])+h.get("bbox",[0,0,0,0])+[h.get("scale",0)]+h.get("pivot",[0,0])
 	for value in fields: out.append_array(Bin.be(int(value),4))
 	out.append_array(Bin.be(model.mask_count,2)); out.append(model.distributions.size()-1)

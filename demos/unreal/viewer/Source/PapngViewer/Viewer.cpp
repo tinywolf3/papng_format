@@ -371,7 +371,7 @@ class SViewer : public SCompoundWidget {
     }
     FDocument *Editing() { return EditChild && Child ? Child.Get() : Doc.Get(); }
     void Colors() {
-        BeginPanel(TEXT("Mask hue"));
+        BeginPanel(TEXT("Mask HSV"));
         if (Child)
             Panel->AddSlot().AutoHeight()[Button(EditChild ? TEXT("Editing accessory — switch to parent")
                                                            : TEXT("Editing parent — switch to accessory"),
@@ -404,6 +404,8 @@ class SViewer : public SCompoundWidget {
         float Offset = D->Offsets[MaskIndex];
         auto Edited = HSV;
         Edited.R = FMath::Fmod(HSV.R + Offset + 360, 360);
+        Edited.G = FMath::Clamp(HSV.G + D->SaturationOffsets[MaskIndex], 0.f, 1.f);
+        Edited.B = FMath::Clamp(HSV.B + D->ValueOffsets[MaskIndex], 0.f, 1.f);
         Edited = Edited.HSVToLinearRGB();
         Panel->AddSlot()
             .AutoHeight()[SNew(SHorizontalBox) +
@@ -414,15 +416,16 @@ class SViewer : public SCompoundWidget {
                               1)[SNew(SBorder).Padding(16).BorderImage(&White).BorderBackgroundColor(
                               DisplayColor(Edited))[SNew(STextBlock).Text(FText::FromString(TEXT("Modified")))]]];
         Label(FString::Printf(TEXT("Original H: %.1f°  Offset: %.1f°"), HSV.R, Offset));
-        Panel->AddSlot().AutoHeight()[Button(TEXT("Choose color…"), [this, Edited, Hue = HSV.R] {
+        Panel->AddSlot().AutoHeight()[Button(TEXT("Choose color…"), [this, Edited, HSV] {
             Pause();
             TWeakPtr<SViewer> Weak = SharedThis(this);
             FColorPickerArgs Args(DisplayColor(Edited),
-                                  FOnLinearColorValueChanged::CreateLambda([Weak, Hue, Target=Editing(), Index=MaskIndex](FLinearColor Value) {
+                                  FOnLinearColorValueChanged::CreateLambda([Weak, HSV, Target=Editing(), Index=MaskIndex](FLinearColor Value) {
                                       if (auto Self = Weak.Pin()) {
                                           auto D = Self->Editing();
                                           if (D == Target && D && Self->MaskIndex == Index && D->State.Masks) {
-                                              D->Mask(Index, EncodedColor(Value).LinearRGBToHSV().R - Hue);
+                                              auto Picked = EncodedColor(Value).LinearRGBToHSV();
+                                              D->MaskHsv(Index, Picked.R - HSV.R, Picked.G - HSV.G, Picked.B - HSV.B);
                                               Self->Restart();
                                               Self->Colors();
                                           }
@@ -443,12 +446,21 @@ class SViewer : public SCompoundWidget {
                        Restart();
                    }
                });
+        Number(TEXT("ΔS saturation"), D->SaturationOffsets[MaskIndex], -1, 1, [this](float V) {
+            auto Target = Editing(); if (!Target || !Target->State.Masks) return;
+            Pause(); Target->MaskHsv(MaskIndex, Target->Offsets[MaskIndex], V, Target->ValueOffsets[MaskIndex]); Restart();
+        });
+        Number(TEXT("ΔV value"), D->ValueOffsets[MaskIndex], -1, 1, [this](float V) {
+            auto Target = Editing(); if (!Target || !Target->State.Masks) return;
+            Pause(); Target->MaskHsv(MaskIndex, Target->Offsets[MaskIndex], Target->SaturationOffsets[MaskIndex], V); Restart();
+        });
         Panel->AddSlot().AutoHeight()[Button(TEXT("Update swatches"), [this] { Colors(); })];
         Panel->AddSlot().AutoHeight()[Button(TEXT("Reset offset"), [this] {
             auto D = Editing();
             if (D) {
-                D->Mask(MaskIndex, 0);
+                D->MaskHsv(MaskIndex, 0, 0, 0);
                 Pause();
+                Restart();
                 Colors();
             }
         })];
@@ -460,7 +472,7 @@ class SViewer : public SCompoundWidget {
             Pause();
         })];
         Label(TEXT(
-            "Hue edits pause playback and reconstruct from frame zero. Grayscale pixels keep their color."));
+            "HSV edits pause playback and reconstruct from frame zero. S/V are additive and clamped to 0–1; clipping can reduce texture. Alpha is preserved."));
     }
     void BackgroundPanel() {
         BeginPanel(TEXT("Background"));

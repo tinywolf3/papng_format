@@ -15,6 +15,8 @@ public sealed class Viewer : MonoBehaviour {
     Texture2D checker, background, hueStrip;
     bool showBackground = true;
     float[] offsets = Array.Empty<float>(), childOffsets = Array.Empty<float>();
+    float[] saturations = Array.Empty<float>(), childSaturations = Array.Empty<float>();
+    float[] brightness = Array.Empty<float>(), childBrightness = Array.Empty<float>();
     Rect viewport;
     double lastTick;
     string maskSearch = "";
@@ -98,9 +100,9 @@ public sealed class Viewer : MonoBehaviour {
             fitted = true;
         }
         if (doc != null && offsets.Length != doc.State.Masks)
-            offsets = new float[doc.State.Masks];
+            { offsets = new float[doc.State.Masks]; saturations = new float[doc.State.Masks]; brightness = new float[doc.State.Masks]; }
         if (child != null && childOffsets.Length != child.State.Masks)
-            childOffsets = new float[child.State.Masks];
+            { childOffsets = new float[child.State.Masks]; childSaturations = new float[child.State.Masks]; childBrightness = new float[child.State.Masks]; }
     }
     void OnDestroy() {
         doc?.Dispose();
@@ -341,6 +343,8 @@ public sealed class Viewer : MonoBehaviour {
             editChild = GUILayout.Toggle(editChild, "Edit accessory masks");
         var d = editChild && child != null ? child : doc;
         var values = d == child ? childOffsets : offsets;
+        var ds = d == child ? childSaturations : saturations;
+        var dv = d == child ? childBrightness : brightness;
         if (d == null || d.State.Masks == 0) {
             GUILayout.Label("No masks in this image.");
             return;
@@ -368,10 +372,10 @@ public sealed class Viewer : MonoBehaviour {
         float newHue = Mathf.Repeat(hue + offset / 360, 1);
         GUILayout.BeginHorizontal();
         Swatch(original);
-        Swatch(Color.HSVToRGB(newHue, sat, val));
+        Swatch(Color.HSVToRGB(newHue, Mathf.Clamp01(sat+ds[maskIndex]), Mathf.Clamp01(val+dv[maskIndex])));
         GUILayout.Label($"Original H {hue*360:0.0}°    Offset {offset:0.0}°");
         GUILayout.EndHorizontal();
-        GUI.enabled = d.State.Means[maskIndex] != 0 && sat > 0;
+        GUI.enabled = d.State.Means[maskIndex] != 0;
         Rect hueRect = GUILayoutUtility.GetRect(200, 28, GUILayout.ExpandWidth(true));
         GUI.DrawTexture(hueRect, hueStrip);
         float picked = newHue * 360;
@@ -382,10 +386,13 @@ public sealed class Viewer : MonoBehaviour {
             evt.Use();
         }
         picked = GUILayout.HorizontalSlider(picked, 0, 360);
-        if (Math.Abs(picked - newHue * 360) > .05) {
+        float nextS = Slider("ΔS saturation", ds[maskIndex], -1, 1);
+        float nextV = Slider("ΔV value", dv[maskIndex], -1, 1);
+        if (Math.Abs(picked - newHue * 360) > .05 || nextS != ds[maskIndex] || nextV != dv[maskIndex]) {
+            ds[maskIndex] = nextS; dv[maskIndex] = nextV;
             values[maskIndex] = picked - hue * 360;
             Pause();
-            d.Mask(maskIndex, values[maskIndex]);
+            d.MaskHsv(maskIndex, values[maskIndex], ds[maskIndex], dv[maskIndex]);
             if (d == doc)
                 child?.Restart();
             else
@@ -395,14 +402,15 @@ public sealed class Viewer : MonoBehaviour {
         if (Button("Reset offset")) {
             values[maskIndex] = 0;
             Pause();
-            d.Mask(maskIndex, 0);
+            ds[maskIndex] = dv[maskIndex] = 0;
+            d.MaskHsv(maskIndex, 0, 0, 0);
             Restart();
         }
         if (Button("Highlight all masks")) {
             d.Select(-1);
             mark = true;
         }
-        GUILayout.Label("Hue changes preserve saturation, value and each pixel's alpha.\nPlayback is " +
+        GUILayout.Label("HSV offsets preserve each pixel's alpha. S/V are additive, clamped to 0–1.\nClipping can reduce texture. Playback is " +
                         "paused and reconstruction restarts after edits.");
     }
     float Slider(string name, float v, float min, float max) {

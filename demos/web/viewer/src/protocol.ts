@@ -6,6 +6,7 @@ export type Command =
   | {type:'pause'|'restart'|'step'|'reset-hues'}
   | {type:'seek';frame:number}
   | {type:'hue';index:number;offset:number;offsets:number[]}
+  | {type:'hsv';index:number;hues:number[];saturations:number[];values:number[]}
   | {type:'clip';id:string}
   | {type:'budget';bytes:number};
 export interface Info {name:string;width:number;height:number;frames:number;bytes:number;maskCount:number;maskColors:MaskColor[];maskMaps:number;maskBindings:number;clips:Clip[];groups:MaskGroup[];sockets?:Sockets;metadata?:{text:string;truncated:boolean};hints:Hints;distributions:{kind:number;valid:boolean}[];controls:{frame:number;type:number}[]}

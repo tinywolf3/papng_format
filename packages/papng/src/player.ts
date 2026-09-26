@@ -45,9 +45,18 @@ export class Player {
     return this.seek(next.frame,cancel);
   }
   async setHueOffset(index: number, offset: number, clipId?: string, cancel?: Cancel) {
+    return this.setMaskAdjustment(index,offset,this.compositor.saturationOffsets[index],this.compositor.valueOffsets[index],clipId,cancel);
+  }
+  async setMaskAdjustment(index: number, hue: number, saturation: number, value: number, clipId?: string, cancel?: Cancel) {
     assert(Number.isInteger(index) && index >= 0 && index < this.doc.maskCount, '마스크 인덱스 오류');
-    if (!Number.isFinite(offset)) { this.warn('유한하지 않은 색상각 변화량: 0으로 복구'); offset = 0; }
-    this.compositor.hueOffsets[index] = offset; this.compositor.invalidate();
+    const normalized = [hue,saturation,value].map((v,i) => {
+      if (!Number.isFinite(v)) { this.warn('유한하지 않은 HSV 변화량: 해당 성분을 0으로 복구'); return 0; }
+      return i === 0 ? v % 360 : Math.max(-1,Math.min(1,v));
+    });
+    this.compositor.hueOffsets[index] = normalized[0];
+    this.compositor.saturationOffsets[index] = normalized[1];
+    this.compositor.valueOffsets[index] = normalized[2];
+    this.compositor.invalidate();
     return this.start(clipId,cancel);
   }
 }

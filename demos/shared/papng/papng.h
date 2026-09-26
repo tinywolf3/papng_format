@@ -28,6 +28,7 @@ PAPNG_API void pp_step(void *handle);
 PAPNG_API void pp_restart(void *handle, int clip);
 PAPNG_API void pp_seek(void *handle, int frame);
 PAPNG_API void pp_mask(void *handle, int index, double degrees);
+PAPNG_API void pp_mask_hsv(void *handle, int index, double degrees, double saturation, double value);
 PAPNG_API double pp_offset(void *handle, int index);
 PAPNG_API void pp_select_mask(void *handle, int index);
 // name kinds: 0 mask, 1 socket, 2 clip. Display labels may be shortened; pointers last until the next pp_name query.

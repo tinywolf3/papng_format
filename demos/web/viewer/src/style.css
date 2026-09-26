@@ -14,3 +14,5 @@
 .socket-panel{border:1px solid #3b5138;background:#19241c;border-radius:8px;padding:16px;margin:0 0 18px}.socket-panel[hidden]{display:none}.socket-panel h3{font-size:15px;margin:10px 0 14px}.socket-options{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px}.socket-options label{display:flex;align-items:center;gap:6px}.socket-options select{max-width:210px}.socket-pose{font-family:monospace;font-size:11px;line-height:1.8;color:#d5e7bf;overflow-wrap:anywhere}.socket-panel .technical{font-size:10px;margin:7px 0 0;overflow-wrap:anywhere}
 
 #metadata-panel[hidden]{display:none}#metadata-source{white-space:pre-wrap;overflow-wrap:anywhere;max-height:300px;overflow:auto;padding:12px;border-radius:6px;background:#101812;color:#b7cbb4;font:11px/1.7 monospace}
+
+.mask-sv{display:grid;gap:8px;margin:12px 0}.mask-sv label{display:flex;align-items:center;gap:8px;font-size:12px}.mask-sv input{flex:1;min-width:0;accent-color:var(--accent,#6851de)}.mask-sv output{width:40px;text-align:right;font-variant-numeric:tabular-nums}

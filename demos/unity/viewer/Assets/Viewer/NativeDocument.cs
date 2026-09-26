@@ -34,6 +34,8 @@ public sealed class NativeDocument : IDisposable {
     [DllImport(Library)]
     internal static extern void pp_mask(IntPtr h, int index, double degrees);
     [DllImport(Library)]
+    internal static extern void pp_mask_hsv(IntPtr h, int index, double degrees, double saturation, double value);
+    [DllImport(Library)]
     internal static extern void pp_select_mask(IntPtr h, int index);
     [DllImport(Library)]
     internal static extern IntPtr pp_name(IntPtr h, int kind, int index);
@@ -200,6 +202,10 @@ public sealed class NativeDocument : IDisposable {
     public void Mask(int index, float degrees) {
         Playing = false;
         queue.Enqueue(h => pp_mask(h, index, degrees));
+    }
+    public void MaskHsv(int index, float degrees, float saturation, float value) {
+        Playing = false;
+        queue.Enqueue(h => pp_mask_hsv(h, index, degrees, saturation, value));
     }
     public void Select(int index) {
         Playing = false;

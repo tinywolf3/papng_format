@@ -9,7 +9,7 @@ import type { Command, Event, Info, Status } from './protocol';
 interface Sample {file:string;title:string;subtitle:string;features:string[];frames:number;width:number;height:number;attachment?:Attachment}
 const icons = {play:'▶',pause:'Ⅱ',next:'→',restart:'↺'};
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <header class="topbar"><a class="brand" href="./" aria-label="PAPNG Pixel lab"><span class="brand-mark" aria-hidden="true">▦</span><b>PAPNG<span> / Pixel lab</span></b></a><div class="header-right"><span class="version">FORMAT 1.0</span><span class="local-badge"><i></i> 로컬에서만 처리</span><button id="open-file" class="button light">＋ 파일 열기</button><input id="file" type="file" accept=".papng,.png,.apng" hidden /></div></header>
+  <header class="topbar"><a class="brand" href="./" aria-label="PAPNG Pixel lab"><span class="brand-mark" aria-hidden="true">▦</span><b>PAPNG<span> / Pixel lab</span></b></a><div class="header-right"><span class="version">FORMAT 1.1</span><span class="local-badge"><i></i> 로컬에서만 처리</span><button id="open-file" class="button light">＋ 파일 열기</button><input id="file" type="file" accept=".papng,.png,.apng" hidden /></div></header>
   <main class="workspace">
     <aside class="library"><div class="section-label">EXPLORE <span id="sample-count">07</span></div><h1>작은 픽셀,<br><em>다양한 가능성.</em></h1><p class="intro">샘플을 선택하고 색과 움직임을<br>직접 바꿔 보세요.</p><nav id="samples" aria-label="PAPNG 샘플"></nav><div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="PAPNG 파일 놓기 또는 선택"><span aria-hidden="true">↥</span><b>나의 픽셀아트 열기</b><small>.papng 파일을 이곳에 놓으세요</small></div><p class="privacy">파일은 서버로 업로드되지 않습니다.</p></aside>
     <section class="stage-column" aria-label="픽셀아트 미리보기"><div class="preview-heading"><div><div class="section-label">CANVAS</div><h2 id="title">팔레트 정원</h2><p id="subtitle">파일을 불러오는 중입니다.</p></div><span id="dimensions" class="pill">— × —</span></div>
@@ -19,8 +19,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <section class="transport" aria-label="재생 제어"><div class="transport-top"><div class="transport-buttons"><button id="restart" class="icon-button" aria-label="처음부터">↺</button><button id="play" class="button accent" disabled>▶ 재생</button><button id="step" class="icon-button" aria-label="다음 방문">→</button></div><span id="play-state" class="play-state">준비 중</span><label class="clip-label">클립 <select id="clip" aria-label="애니메이션 클립"><option value="">전체 애니메이션</option></select></label></div><div class="timeline"><input id="seek" type="range" min="0" max="1" value="0" step="1" aria-label="프레임 이동"><output id="frame-label">000 / 000</output></div><div class="frame-facts"><span>지연 <b id="delay">—</b></span><span>제어 <b id="control">—</b></span><span>완료 <b id="loops">0</b></span></div></section>
       <section class="detail-panel"><div class="section-label">INSIDE THIS FILE</div><div id="features" class="feature-tags"></div><div class="cache-heading"><label for="budget">프레임 캐시 <select id="budget"><option value="0">사용 안 함</option><option value="4">4 MiB</option><option value="16">16 MiB</option><option value="32" selected>32 MiB</option><option value="64">64 MiB</option></select></label><span id="cache-summary">0 B / 32 MiB</span></div><div class="meter"><i id="cache-meter"></i></div><p id="cache-details" class="technical">점프 대상과 자주 찾는 프레임을 우선 보관합니다.</p><details><summary>분포와 프레임 제어 보기</summary><div id="records" class="records"></div></details><details id="metadata-panel" hidden><summary>JSON5 메타데이터 보기</summary><p id="metadata-note" class="technical"></p><pre id="metadata-source"></pre></details></section>
     </section>
-    <aside class="inspector"><div class="palette-heading"><div><div class="section-label">MASK PALETTE</div><h2>색상 실험실 <span id="mask-count">0</span></h2></div><button id="reset-hues" class="subtle" title="색상각 변화량을 0으로 초기화">초기화 ↺</button></div><p class="palette-intro">원본 평균색의 H에서 시작합니다.<br>H 또는 ΔH를 움직여 색을 시험하세요.</p><div id="palette-note" class="palette-note">색상 변경 시 처음부터 복원합니다.</div><p id="mask-sharing" class="technical"></p><div id="mask-pages" class="mask-pages" hidden><button id="mask-prev" class="icon-button" aria-label="이전 마스크 페이지">‹</button><span id="mask-page-label"></span><button id="mask-next" class="icon-button" aria-label="다음 마스크 페이지">›</button><label>번호 <input id="mask-goto" type="number" min="0" step="1" value="0" aria-label="마스크 번호로 이동"></label></div><div id="palette"></div><div class="inspector-note"><span>알아두기</span><p>원본 RGBA와 마스크 소속을 따로 저장합니다. 같은 마스크 안에서도 픽셀마다 색상과 알파가 다를 수 있습니다. ΔH가 0이면 원본색입니다.</p><p>기준색은 전체 원본 프레임의 RGB를 알파로 가중 평균한 색입니다. 완전 투명 픽셀은 제외하며, 재생 시간과 방문 횟수는 반영하지 않습니다.</p><p>H는 기준색을 회전하는 조절값입니다. 각 픽셀은 원래의 색상각 차이를 유지합니다. 변경한 색은 이 미리보기에만 적용됩니다.</p></div><div id="messages" role="status" aria-live="polite"></div></aside>
-  </main><footer><span><i class="status-dot"></i> PAPNG 1.0 · RGBA8</span><span>픽셀아트를 위한 작은 실험실</span><span id="file-size">—</span></footer>`;
+    <aside class="inspector"><div class="palette-heading"><div><div class="section-label">MASK PALETTE</div><h2>색상 실험실 <span id="mask-count">0</span></h2></div><button id="reset-hues" class="subtle" title="HSV 변화량을 0으로 초기화">초기화 ↺</button></div><p class="palette-intro">원본 평균색의 H에서 시작합니다.<br>H·ΔS·ΔV를 움직여 색을 시험하세요.</p><div id="palette-note" class="palette-note">색상 변경 시 처음부터 복원합니다.</div><p id="mask-sharing" class="technical"></p><div id="mask-pages" class="mask-pages" hidden><button id="mask-prev" class="icon-button" aria-label="이전 마스크 페이지">‹</button><span id="mask-page-label"></span><button id="mask-next" class="icon-button" aria-label="다음 마스크 페이지">›</button><label>번호 <input id="mask-goto" type="number" min="0" step="1" value="0" aria-label="마스크 번호로 이동"></label></div><div id="palette"></div><div class="inspector-note"><span>알아두기</span><p>원본 RGBA와 마스크 소속을 따로 저장합니다. 같은 마스크 안에서도 픽셀마다 색상과 알파가 다를 수 있습니다. ΔH·ΔS·ΔV가 모두 0이면 원본색입니다.</p><p>기준색은 전체 원본 프레임의 RGB를 알파로 가중 평균한 색입니다. 완전 투명 픽셀은 제외하며, 재생 시간과 방문 횟수는 반영하지 않습니다.</p><p>H는 기준색을 회전하는 조절값입니다. S/V는 −1~+1의 가산 변화량이며 결과를 0~1로 제한합니다. 클리핑으로 질감이 줄어들 수 있습니다. 변경한 색은 이 미리보기에만 적용됩니다.</p></div><div id="messages" role="status" aria-live="polite"></div></aside>
+  </main><footer><span><i class="status-dot"></i> PAPNG 1.1 · RGBA8</span><span>픽셀아트를 위한 작은 실험실</span><span id="file-size">—</span></footer>`;
 const element = <T extends HTMLElement>(id:string) => document.getElementById(id) as T;
 const worker = new Worker(new URL('./worker.ts',import.meta.url),{type:'module'});
 function send(command:Command,transfer:Transferable[]=[]) {
@@ -37,6 +37,7 @@ function send(command:Command,transfer:Transferable[]=[]) {
 const canvas = element<HTMLCanvasElement>('canvas'), ctx = canvas.getContext('2d',{alpha:true})!;
 let info: Info | undefined, status: Status | undefined, samples: Sample[] = [], loadToken = 0;
 let resourceLoading = false;
+let saturations: number[] = [], values: number[] = [];
 let offsets: number[] = [], maskPage = 0, lastSample: Sample | undefined, messageCount = 0;
 let baseImage: ImageData | undefined;
 const attachment = new AttachmentPreview(()=>{drawScene();updatePlayAvailability();},text=>message(text,true));
@@ -111,15 +112,15 @@ function renderPalette() {
   }
   for (let index = first; index < end; index++) {
     const color = info.maskColors[index], label = maskLabel(info.groups,index);
-    const base = color.hue === null ? null : displayHue(color.hue);
+    const base = color.hue === null ? (color.rgb ? 0 : null) : displayHue(color.hue);
     const card = document.createElement('div'); card.className = 'mask-card';
-    card.innerHTML = `<div class="mask-top"><span class="swatch-pair"><span class="swatch-sample"><span class="swatch original-swatch" role="img" aria-label="마스크 ${index} 원본 평균색"></span><small>원본</small></span><span class="swatch-sample"><span class="swatch modified-swatch" role="img" aria-label="마스크 ${index} 수정색"></span><small>수정</small></span></span><div><b class="mask-name"></b><small class="mask-group"></small></div><span class="mask-index">${index}</span></div><div class="hue-caption"><span>원본 평균 H</span><output class="average-hue"></output></div><input class="hue-range" type="range" min="0" max="359.9" step="0.1" aria-label="마스크 ${index} 색상각"><div class="mask-values"><label>H <input class="hue-target" type="number" min="0" max="359.9" step="0.1" placeholder="—" aria-label="마스크 ${index} H"></label><label>ΔH <input class="hue-number" type="number" min="-180" max="180" step="0.1" aria-label="마스크 ${index} 변화량"></label><button class="mask-reset subtle" aria-label="마스크 ${index} 색상 초기화">↺</button></div><p class="hue-offset-note"></p>`;
+    card.innerHTML = `<div class="mask-top"><span class="swatch-pair"><span class="swatch-sample"><span class="swatch original-swatch" role="img" aria-label="마스크 ${index} 원본 평균색"></span><small>원본</small></span><span class="swatch-sample"><span class="swatch modified-swatch" role="img" aria-label="마스크 ${index} 수정색"></span><small>수정</small></span></span><div><b class="mask-name"></b><small class="mask-group"></small></div><span class="mask-index">${index}</span></div><div class="hue-caption"><span>원본 평균 H</span><output class="average-hue"></output></div><input class="hue-range" type="range" min="0" max="359.9" step="0.1" aria-label="마스크 ${index} 색상각"><div class="mask-values"><label>H <input class="hue-target" type="number" min="0" max="359.9" step="0.1" placeholder="—" aria-label="마스크 ${index} H"></label><label>ΔH <input class="hue-number" type="number" min="-180" max="180" step="0.1" aria-label="마스크 ${index} 변화량"></label><button class="mask-reset subtle" aria-label="마스크 ${index} 색상 초기화">↺</button></div><div class="mask-sv"><label>ΔS <input class="saturation-offset" type="range" min="-1" max="1" step="0.01" aria-label="마스크 ${index} 채도 변화량"><output class="saturation-value"></output></label><label>ΔV <input class="value-offset" type="range" min="-1" max="1" step="0.01" aria-label="마스크 ${index} 명도 변화량"><output class="value-value"></output></label></div><p class="hue-offset-note"></p>`;
     card.querySelector('.mask-name')!.textContent = label.name;
     card.querySelector('.mask-group')!.textContent = label.group || '픽셀별 색상 · 알파 유지';
-    card.querySelector('.average-hue')!.textContent = base !== null ? `${base.toFixed(1)}°` : color.rgb ? '무채색 · H 없음' : color.pixels ? '완전 투명 · H 없음' : '대상 픽셀 없음';
+    card.querySelector('.average-hue')!.textContent = color.rgb && color.hue === null ? '무채색 · 기준 H 0°' : base !== null ? `${base.toFixed(1)}°` : color.pixels ? '완전 투명 · H 없음' : '대상 픽셀 없음';
     const swatch = card.querySelector<HTMLElement>('.original-swatch')!;
     const modifiedSwatch = card.querySelector<HTMLElement>('.modified-swatch')!;
-    modifiedSwatch.title = '원본 평균색에 ΔH를 적용한 미리보기';
+    modifiedSwatch.title = '원본 평균색에 ΔH·ΔS·ΔV를 적용한 참고색';
     modifiedSwatch.classList.toggle('empty-swatch',!color.rgb);
     swatch.title = '원본 평균색';
     swatch.style.backgroundColor = color.rgb ? `rgb(${color.rgb.join(',')})` : 'transparent';
@@ -129,22 +130,29 @@ function renderPalette() {
     const number = card.querySelector<HTMLInputElement>('.hue-number')!;
     range.dataset.unavailable = target.dataset.unavailable = String(base === null);
     range.hidden = base === null;
+    const saturation = card.querySelector<HTMLInputElement>('.saturation-offset')!;
+    const value = card.querySelector<HTMLInputElement>('.value-offset')!;
     const update = (offset:number) => {
+      saturation.value = String(saturations[index]); value.value = String(values[index]);
+      card.querySelector('.saturation-value')!.textContent = saturations[index].toFixed(2);
+      card.querySelector('.value-value')!.textContent = values[index].toFixed(2);
       number.value = String(offset);
-      modifiedSwatch.style.backgroundColor = color.rgb ? `rgb(${shiftHue(...color.rgb,offset).join(',')})` : 'transparent';
+      modifiedSwatch.style.backgroundColor = color.rgb ? `rgb(${shiftHue(...color.rgb,offset,saturations[index],values[index]).join(',')})` : 'transparent';
       const h = base === null ? '' : String(displayHue(base+offset));
       target.value = h; range.value = h || '0';
-      card.querySelector('.hue-offset-note')!.textContent = offset === 0 ? 'ΔH 0° · 원본색' : `ΔH ${offset>0?'+':''}${offset.toFixed(1)}° · 픽셀 알파 유지`;
+      card.querySelector('.hue-offset-note')!.textContent = offset === 0 && saturations[index] === 0 && values[index] === 0 ? 'ΔH·ΔS·ΔV 0 · 원본색' : `ΔH ${offset>0?'+':''}${offset.toFixed(1)}° · 픽셀 알파 유지`;
     };
     const change = (offset:number) => {
       if (!Number.isFinite(offset) || offset < -180 || offset > 180 || status?.playing || resourceLoading) return;
-      offsets[index] = offset; update(offset); send({type:'hue',index,offset,offsets:[...offsets]});
+      offsets[index] = offset; update(offset); send({type:'hsv',index,hues:[...offsets],saturations:[...saturations],values:[...values]});
     };
     const changeTarget = (h:number) => { if (base !== null && Number.isFinite(h) && h >= 0 && h < 360) change(hueOffset(base,h)); };
     range.oninput = () => changeTarget(Number(range.value));
     target.onchange = () => { if (target.value!=='' && target.checkValidity()) changeTarget(Number(target.value)); else update(offsets[index]); };
     number.onchange = () => { if (number.value!=='' && number.checkValidity()) change(Number(number.value)); else update(offsets[index]); };
-    card.querySelector<HTMLButtonElement>('.mask-reset')!.onclick = () => change(0);
+    saturation.oninput = () => { if (status?.playing || resourceLoading) return; saturations[index]=Math.max(-1,Math.min(1,Number(saturation.value))); change(offsets[index]); };
+    value.oninput = () => { if (status?.playing || resourceLoading) return; values[index]=Math.max(-1,Math.min(1,Number(value.value))); change(offsets[index]); };
+    card.querySelector<HTMLButtonElement>('.mask-reset')!.onclick = () => { saturations[index]=0; values[index]=0; change(0); };
     update(offsets[index]); root.append(card);
   }
   root.querySelectorAll<HTMLInputElement|HTMLButtonElement>('input,button').forEach(e=>e.disabled=resourceLoading || !!status?.playing || e.dataset.unavailable==='true');
@@ -152,7 +160,7 @@ function renderPalette() {
 function renderInfo(next:Info) {
   resourceLoading=false;
   document.querySelectorAll<HTMLInputElement|HTMLButtonElement|HTMLSelectElement>('#restart, #step, #seek, #clip, #reset-hues').forEach(e=>e.disabled=false);
-  info=next;status=undefined;offsets=Array(next.maskCount).fill(0);maskPage=0;
+  info=next;status=undefined;offsets=Array(next.maskCount).fill(0);saturations=Array(next.maskCount).fill(0);values=Array(next.maskCount).fill(0);maskPage=0;
   element('file-name').textContent=next.name;element('dimensions').textContent=`${next.width} × ${next.height}`;
   element('file-size').textContent=`${bytes(next.bytes)} · ${next.frames} frames`;
   element('title').textContent=lastSample?.title??next.name;element('subtitle').textContent=lastSample?.subtitle??'나의 PAPNG 리소스';
@@ -183,7 +191,7 @@ function renderStatus(next:Status) {
   element('cache-summary').textContent=`${bytes(next.cache.bytes)} / ${bytes(next.cache.budget)}`;
   element('cache-meter').style.width=`${next.cache.budget?next.cache.bytes/next.cache.budget*100:0}%`;
   element('cache-details').textContent=`${next.cache.entries}개 보관 · 적중 ${next.cache.hits} · 해제 ${next.cache.evictions} · 현재 합성 ${bytes(next.activeBytes)} · 마스크 캐시 ${bytes(next.maskBytes)} · 복원 ${next.reconstructions}회`;
-  element('palette-note').textContent=next.playing?'일시정지하면 색상각을 변경할 수 있습니다.':'색상 변경 시 처음부터 복원합니다.';
+  element('palette-note').textContent=next.playing?'일시정지하면 HSV를 변경할 수 있습니다.':'색상 변경 시 처음부터 복원합니다.';
   document.querySelectorAll<HTMLInputElement|HTMLButtonElement>('#palette input, #palette button, #reset-hues').forEach(e=>e.disabled=resourceLoading || next.playing || e.dataset.unavailable==='true');
 }
 worker.onmessage=(event:MessageEvent<Event>)=>{
@@ -219,7 +227,7 @@ element('restart').onclick=()=>send({type:'restart'});element('step').onclick=()
 element<HTMLInputElement>('seek').onchange=e=>send({type:'seek',frame:Number((e.target as HTMLInputElement).value)});
 element<HTMLSelectElement>('clip').onchange=e=>send({type:'clip',id:(e.target as HTMLSelectElement).value});
 element<HTMLSelectElement>('budget').onchange=e=>send({type:'budget',bytes:Number((e.target as HTMLSelectElement).value)*1048576});
-element('reset-hues').onclick=()=>{if(info){offsets.fill(0);renderPalette();send({type:'reset-hues'});}};
+element('reset-hues').onclick=()=>{if(info){offsets.fill(0);saturations.fill(0);values.fill(0);renderPalette();send({type:'reset-hues'});}};
 element('mask-prev').onclick=()=>{maskPage=Math.max(0,maskPage-1);renderPalette();};
 element('mask-next').onclick=()=>{if(info)maskPage=Math.min(Math.ceil(info.maskCount/16)-1,maskPage+1);renderPalette();};
 element<HTMLInputElement>('mask-goto').onchange=e=>{const n=Number((e.target as HTMLInputElement).value);if(info&&Number.isInteger(n)&&n>=0&&n<info.maskCount){maskPage=Math.floor(n/16);renderPalette();}};

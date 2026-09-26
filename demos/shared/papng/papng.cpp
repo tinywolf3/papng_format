@@ -136,7 +136,7 @@ class Player {
     std::vector<Clip> clips;
     std::vector<std::string> maskNames, socketNames;
     std::map<int, std::vector<Pose>> poses;
-    std::vector<double> offsets;
+    std::vector<double> offsets, saturationOffsets, valueOffsets;
     std::vector<std::array<double, 4>> sums;
     State state;
     std::map<int, Cached> cache;
@@ -161,7 +161,7 @@ class Player {
     }
     explicit Player(const Bytes &bytes) {
         load(bytes);
-        offsets.resize(maskCount);
+        offsets.resize(maskCount); saturationOffsets.resize(maskCount); valueOffsets.resize(maskCount);
         maskNames.resize(maskCount);
         sums.resize(maskCount);
         end = int(frames.size()) - 1;
@@ -316,7 +316,7 @@ class Player {
         Reader r{b, 10};
         auto minor = r.u(2);
         auto size = r.u(4);
-        if (b.size() < 56 || size < 56 || size > b.size() || (!minor && size != 56)) {
+        if (b.size() < 56 || size < 56 || size > b.size() || (minor <= 1 && size != 56)) {
             warn("Invalid paEX header");
             return false;
         }
@@ -331,7 +331,7 @@ class Player {
             hints[2] = {scale, 0, 0, 0};
         if (flags & 8)
             hints[3] = {px, py, 0, 0};
-        if (minor || flags >> 4)
+        if (minor > 1 || flags >> 4)
             warn("Unknown extension fields ignored");
         r.p = size;
         auto masks = r.u(2);
@@ -586,20 +586,21 @@ class Player {
                 return min + i;
         }
     }
-    static std::array<unsigned char, 3> hue(const unsigned char *p, double offset) {
-        double high = std::max({p[0], p[1], p[2]}), low = std::min({p[0], p[1], p[2]}), chroma = high - low;
-        if (chroma == 0 || fmod(offset, 360) == 0)
-            return {p[0], p[1], p[2]};
-        double h = high == p[0]   ? double(p[1] - p[2]) / chroma
-                   : high == p[1] ? double(p[2] - p[0]) / chroma + 2
-                                  : double(p[0] - p[1]) / chroma + 4;
-        h = fmod(fmod(h + offset / 60, 6) + 6, 6);
-        double x = chroma * (1 - fabs(fmod(h, 2) - 1));
-        double a[6][3] = {{chroma, x, 0}, {x, chroma, 0}, {0, chroma, x},
-                          {0, x, chroma}, {x, 0, chroma}, {chroma, 0, x}};
-        return {static_cast<unsigned char>(floor(a[int(h)][0] + low + .5)),
-                static_cast<unsigned char>(floor(a[int(h)][1] + low + .5)),
-                static_cast<unsigned char>(floor(a[int(h)][2] + low + .5))};
+    static std::array<unsigned char, 3> hue(const unsigned char *p, double offset, double ds = 0, double dv = 0) {
+        if (!std::isfinite(offset)) offset = 0;
+        ds = std::isfinite(ds) ? std::clamp(ds,-1.0,1.0) : 0;
+        dv = std::isfinite(dv) ? std::clamp(dv,-1.0,1.0) : 0;
+        offset = fmod(offset,360);
+        if (offset == 0 && ds == 0 && dv == 0) return {p[0],p[1],p[2]};
+        double high = std::max({p[0],p[1],p[2]}), low = std::min({p[0],p[1],p[2]}), chroma = high-low;
+        double h = chroma == 0 ? 0 : high == p[0] ? (p[1]-p[2])/chroma : high == p[1] ? (p[2]-p[0])/chroma+2 : (p[0]-p[1])/chroma+4;
+        h = fmod(fmod(h+offset/60,6)+6,6);
+        double sat = std::clamp((high == 0 ? 0 : chroma/high)+ds,0.0,1.0), val = std::clamp(high+dv*255,0.0,255.0);
+        double c = val*sat, m = val-c, x = c*(1-fabs(fmod(h,2)-1));
+        double a[6][3] = {{c,x,0},{x,c,0},{0,c,x},{0,x,c},{x,0,c},{c,0,x}};
+        return {static_cast<unsigned char>(std::clamp(floor(a[int(h)][0]+m+.5+1e-10),0.0,255.0)),
+                static_cast<unsigned char>(std::clamp(floor(a[int(h)][1]+m+.5+1e-10),0.0,255.0)),
+                static_cast<unsigned char>(std::clamp(floor(a[int(h)][2]+m+.5+1e-10),0.0,255.0))};
     }
     void dispose() {
         auto &f = frames[state.frame];
@@ -626,7 +627,7 @@ class Player {
             for (uint32_t x = 0; x < f.w; x++) {
                 size_t s = (size_t(y) * f.w + x) * 4, d = (size_t(y + f.y) * width + x + f.x) * 4;
                 int word = words.empty() ? 0 : (words[s / 2] << 8) | words[s / 2 + 1];
-                auto rgb = hue(pixels.data() + s, word & 0x8000 ? offsets[word & 32767] : 0);
+                auto rgb = hue(pixels.data() + s, word & 0x8000 ? offsets[word & 32767] : 0, word & 0x8000 ? saturationOffsets[word & 32767] : 0, word & 0x8000 ? valueOffsets[word & 32767] : 0);
                 double sa = pixels[s + 3] / 255.0, da = state.pixels[d + 3] / 255.0, a = sa + da * (1 - sa);
                 if (!f.blend || sa == 1) {
                     for (int c = 0; c < 3; c++)
@@ -1023,13 +1024,19 @@ void pp_seek(void *h, int frame) {
         }
     });
 }
-void pp_mask(void *h, int index, double degrees) {
+void pp_mask_hsv(void *h, int index, double degrees, double saturation, double value) {
     guarded(h, [&](auto &p) {
-        if (index >= 0 && index < p.maskCount && std::isfinite(degrees)) {
-            p.offsets[index] = fmod(degrees, 360);
-            p.invalidate();
-        }
+        if (index < 0 || index >= p.maskCount) return;
+        auto finite = [&](double n) { if (std::isfinite(n)) return n; p.warn("Non-finite HSV offset: component reset to zero"); return 0.0; };
+        p.offsets[index] = fmod(finite(degrees),360);
+        p.saturationOffsets[index] = std::clamp(finite(saturation),-1.0,1.0);
+        p.valueOffsets[index] = std::clamp(finite(value),-1.0,1.0);
+        p.invalidate();
     });
+}
+void pp_mask(void *h, int index, double degrees) {
+    if (h && index >= 0 && index < player(h)->maskCount)
+        pp_mask_hsv(h,index,degrees,player(h)->saturationOffsets[index],player(h)->valueOffsets[index]);
 }
 double pp_offset(void *h, int index) {
     return h && index >= 0 && index < player(h)->maskCount ? player(h)->offsets[index] : 0;

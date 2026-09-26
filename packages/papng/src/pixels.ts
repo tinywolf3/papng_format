@@ -41,14 +41,18 @@ export async function decodeFrame(frame: Frame, interlace: number): Promise<Uint
 
 // Compute HSV from the original RGB at full floating-point precision.
 // Identity edits bypass conversion entirely.
-export function shiftHue(r: number, g: number, b: number, degrees: number): [number, number, number] {
-  const delta = ((degrees % 360) + 360) % 360;
-  if (delta === 0) return [r,g,b];
+export function shiftHue(r: number, g: number, b: number, degrees: number, saturation = 0, value = 0): [number, number, number] {
+  const delta = Number.isFinite(degrees) ? ((degrees % 360) + 360) % 360 : 0;
+  saturation = Number.isFinite(saturation) ? Math.max(-1, Math.min(1, saturation)) : 0;
+  value = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
+  if (delta === 0 && saturation === 0 && value === 0) return [r,g,b];
   const high = Math.max(r,g,b), low = Math.min(r,g,b), chroma = high-low;
-  if (chroma === 0) return [r,g,b];
-  let sector = high === r ? (g-b)/chroma : high === g ? (b-r)/chroma+2 : (r-g)/chroma+4;
+  let sector = chroma === 0 ? 0 : high === r ? (g-b)/chroma : high === g ? (b-r)/chroma+2 : (r-g)/chroma+4;
   sector = ((sector+delta/60)%6+6)%6;
-  const x = chroma*(1-Math.abs(sector%2-1));
-  const channels = [[chroma,x,0],[x,chroma,0],[0,chroma,x],[0,x,chroma],[x,0,chroma],[chroma,0,x]][Math.floor(sector)];
-  return channels.map(c => Math.max(0,Math.min(255,Math.floor(c+low+0.5)))) as [number,number,number];
+  const sat = Math.max(0,Math.min(1,(high === 0 ? 0 : chroma/high)+saturation));
+  const val = Math.max(0,Math.min(255,high+value*255));
+  const c = val*sat, m = val-c, x = c*(1-Math.abs(sector%2-1));
+  const channels = [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][Math.floor(sector)];
+  // Absorb floating-point noise at exact RGB8 half-step boundaries.
+  return channels.map(n => Math.max(0,Math.min(255,Math.floor(n+m+0.5+1e-10)))) as [number,number,number];
 }

@@ -94,7 +94,15 @@ async function handle(command: Command, token: number) {
     player.compositor.hueOffsets.set(command.offsets);
     clearImage(); await player.setHueOffset(command.index,command.offset,clipId,cancel);
   }
-  if (command.type === 'reset-hues') { player.compositor.hueOffsets.fill(0); player.compositor.invalidate(); clearImage(); await player.start(clipId,cancel); }
+  if (command.type === 'hsv') {
+    const arrays = [command.hues,command.saturations,command.values];
+    if (arrays.some(a => a.length !== player!.doc.maskCount || a.some(n => !Number.isFinite(n)))) throw new Error('잘못된 HSV 변화량 배열');
+    player.compositor.hueOffsets.set(command.hues.map(v => v % 360));
+    player.compositor.saturationOffsets.set(command.saturations.map(v => Math.max(-1,Math.min(1,v))));
+    player.compositor.valueOffsets.set(command.values.map(v => Math.max(-1,Math.min(1,v))));
+    clearImage(); await player.setMaskAdjustment(command.index,command.hues[command.index],command.saturations[command.index],command.values[command.index],clipId,cancel);
+  }
+  if (command.type === 'reset-hues') { player.compositor.hueOffsets.fill(0); player.compositor.saturationOffsets.fill(0); player.compositor.valueOffsets.fill(0); player.compositor.invalidate(); clearImage(); await player.start(clipId,cancel); }
   if (command.type === 'clip' || command.type === 'restart') { if (command.type === 'clip') clipId = command.id; clearImage(); await player.start(clipId,cancel); }
   if (command.type === 'seek') { await player.seek(command.frame,cancel); }
   if (command.type === 'step') { if (player.ended) { clearImage(); await player.start(clipId,cancel); } else await player.advance(cancel); }

@@ -2,7 +2,7 @@
   {
     "file": "palette-creature.papng",
     "title": "팔레트 정원",
-    "subtitle": "원본 RGBA 보존 · 색상각 변화량 편집",
+    "subtitle": "원본 RGBA 보존 · H·S·V 변화량 편집",
     "features": [
       "mask16",
       "original-rgba",

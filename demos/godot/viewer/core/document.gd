@@ -137,7 +137,7 @@ func parse_extension(bytes: PackedByteArray) -> bool:
 	r.pos = 10
 	var minor = r.u(2)
 	var size = r.u(4)
-	if bytes.size() < 56 or size < 56 or size > bytes.size() or (minor == 0 and size != 56):
+	if bytes.size() < 56 or size < 56 or size > bytes.size() or (minor <= 1 and size != 56):
 		warn("paEX 헤더 오류: 확장 무시"); return false
 	var flags = r.u(4)
 	var dw = r.u(4); var dh = r.u(4)
@@ -147,7 +147,7 @@ func parse_extension(bytes: PackedByteArray) -> bool:
 	if flags & 2 and bx >= 0 and by >= 0 and bw > 0 and bh > 0 and bx + bw <= width and by + bh <= height: hints.bbox = [bx,by,bw,bh]
 	if flags & 4 and scale > 0: hints.scale = scale
 	if flags & 8: hints.pivot = [px,py]
-	if minor > 0 or flags >> 4: warn("알 수 없는 확장 필드는 무시합니다")
+	if minor > 1 or flags >> 4: warn("알 수 없는 확장 필드는 무시합니다")
 	r.pos = size
 	var masks = r.u(2)
 	if masks <= 32768: mask_count = masks

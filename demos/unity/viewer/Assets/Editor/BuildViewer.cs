@@ -12,7 +12,7 @@ public static class BuildViewer {
         var target = platform == "windows" ? BuildTarget.StandaloneWindows64 : BuildTarget.StandaloneLinux64;
         PlayerSettings.companyName = "Tiny Games";
         PlayerSettings.productName = "PAPNG Unity Viewer";
-        PlayerSettings.bundleVersion = "0.1.0";
+        PlayerSettings.bundleVersion = "0.2.0";
         PlayerSettings.defaultScreenWidth = 1200;
         PlayerSettings.defaultScreenHeight = 800;
         PlayerSettings.fullScreenMode = FullScreenMode.Windowed;

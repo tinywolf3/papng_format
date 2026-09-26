@@ -8,11 +8,13 @@ export type Cancel = () => boolean;
 export class Compositor {
   state?: CachedState;
   readonly hueOffsets: Float64Array;
+  readonly saturationOffsets: Float64Array;
+  readonly valueOffsets: Float64Array;
   readonly masks: MaskPlanes;
   readonly cache: StateCache;
   priority = new Map<number,number>();
   reconstructions = 0;
-  constructor(readonly doc: Papng, budget: number, readonly warn: Warn) { this.cache = new StateCache(budget); this.hueOffsets = new Float64Array(doc.maskCount); this.masks = new MaskPlanes(doc,warn); }
+  constructor(readonly doc: Papng, budget: number, readonly warn: Warn) { this.cache = new StateCache(budget); this.hueOffsets = new Float64Array(doc.maskCount); this.saturationOffsets = new Float64Array(doc.maskCount); this.valueOffsets = new Float64Array(doc.maskCount); this.masks = new MaskPlanes(doc,warn); }
   invalidate() { this.state = undefined; this.cache.clear(); }
   resetCurrent() { this.state = undefined; }
   private dispose(state: CachedState) {
@@ -50,10 +52,11 @@ export class Compositor {
         const word = mask[pixel];
         if (!(word & 0x8000)) continue;
         const shift = this.hueOffsets[word & 0x7fff];
-        if (!Number.isFinite(shift)) { this.warn('유한하지 않은 색상각 변화량: 0으로 복구'); continue; }
-        if (!shift) continue;
+        const saturation = this.saturationOffsets[word & 0x7fff], value = this.valueOffsets[word & 0x7fff];
+        if (!Number.isFinite(shift) || !Number.isFinite(saturation) || !Number.isFinite(value)) this.warn('유한하지 않은 HSV 변화량: 해당 성분을 0으로 복구');
+        if (!shift && !saturation && !value) continue;
         const offset = pixel*4;
-        source.set(shiftHue(source[offset],source[offset+1],source[offset+2],shift),offset);
+        source.set(shiftHue(source[offset],source[offset+1],source[offset+2],shift,saturation,value),offset);
       }
       if (cancelled()) throw new Cancelled();
       state.previous = frame.dispose === 2 ? state.pixels.slice() : undefined;

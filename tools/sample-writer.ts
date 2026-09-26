@@ -14,6 +14,7 @@ export class Writer {
 }
 export interface SampleFrame { rgba: Uint8Array; mask?: Uint16Array; width?: number; height?: number; x?: number; y?: number; num?: number; den?: number; dispose?: number; blend?: number; filter?: number }
 export interface SampleDefinition {
+  minor?: 0 | 1;
   width: number; height: number; frames: SampleFrame[]; plays?: number; maskCount?: number;
   distributions?: {kind:number; items?:[number,number][]; parameters?:Uint8Array}[];
   controls?: {frame:number; type:number; values:number[]; payload?:Uint8Array}[];
@@ -25,7 +26,7 @@ export function pngChunk(name: string, data: Uint8Array) {
   return concat([new Writer().u32(data.length).finish(),body,new Writer().u32(crc32(body)).finish()]);
 }
 export function extension(d: SampleDefinition) {
-  const w = new Writer().bytes([80,65,80,78,71,0,0,0]).u16(1).u16(0).u32(56), h = d.hints ?? {};
+  const w = new Writer().bytes([80,65,80,78,71,0,0,0]).u16(1).u16(d.minor ?? 1).u32(56), h = d.hints ?? {};
   w.u32((h.display?1:0)|(h.bbox?2:0)|(h.scale?4:0)|(h.pivot?8:0));
   for (const n of [...h.display ?? [0,0],...h.bbox ?? [0,0,0,0],h.scale ?? 0,...h.pivot ?? [0,0]]) w.u32(n);
   w.u16(d.maskCount ?? 0);

@@ -4,6 +4,8 @@ var host
 var fields: Dictionary = {}
 var mask_id: SpinBox
 var mask_name: LineEdit
+var saturation: SpinBox
+var brightness: SpinBox
 var hue: HSlider
 var mask_label: Label
 var socket_id: OptionButton
@@ -50,17 +52,21 @@ func build_masks():
 	UI.button(box,"선택 영역의 마스크 해제",func(): assign_mask(true))
 	UI.label(box,"M: 마스크 브러시 · Shift: 해제").add_theme_font_size_override("font_size",12)
 	box.add_child(HSeparator.new())
-	UI.label(box,"색상각 미리보기 (원본색은 보존)")
+	UI.label(box,"HSV 미리보기 (원본색·알파는 보존)")
 	UI.label(box,"색상칩: 현재 원본 프레임의 평균색").add_theme_font_size_override("font_size",12)
 	hue=HSlider.new(); hue.min_value=-180; hue.max_value=180; hue.step=1; box.add_child(hue)
 	hue.value_changed.connect(func(value): if not updating: host.set_hue(int(mask_id.value),value))
+	hue.tooltip_text = "ΔH · 색상각 변화량 (도)"
+	saturation=UI.spin(box,"ΔS 채도",-1,1,0.01); brightness=UI.spin(box,"ΔV 명도",-1,1,0.01)
+	for field in [saturation,brightness]: field.value_changed.connect(func(_v): if not updating: host.set_hsv(int(mask_id.value),hue.value,saturation.value,brightness.value))
+	UI.label(box,"S/V 가산 후 0~1로 제한됩니다.\n원본 질감은 잘릴 수 있습니다.").add_theme_font_size_override("font_size",12)
 	mask_swatches=UI.row(box)
 	for name in ["원본","변경"]:
 		var group=VBoxContainer.new(); mask_swatches.add_child(group); UI.label(group,name)
 		var swatch=ColorRect.new(); swatch.custom_minimum_size=Vector2(95,36); group.add_child(swatch)
 		if name=="원본": original_color=swatch
 		else: shifted_color=swatch
-	UI.button(box,"미리보기 색상 초기화",func(): host.hues.clear(); host.preview_dirty=true; hue.set_value_no_signal(0); host.canvas.hue_offsets=host.hues; host.canvas.refresh())
+	UI.button(box,"미리보기 색상 초기화",func(): host.stop_playback(); host.hues.clear(); host.preview_dirty=true; hue.set_value_no_signal(0); host.canvas.hue_offsets=host.hues; host.canvas.refresh(); sync_mask())
 	UI.button(box,"마스크 그룹 편집…",func(): host.show_groups())
 func build_sockets():
 	var box=UI.tab(self,"소켓")
@@ -174,8 +180,10 @@ func sync_mask():
 	var id=int(mask_id.value); var name="마스크 "+str(id)
 	for group in model().metadata().get("mask_groups",[]):
 		if group.palette_indices==[float(id)] or group.palette_indices==[id]: name=group.get("name",group.id); break
-	mask_name.text=name; hue.set_value_no_signal(host.hues.get(id,0))
-	var source=host.mask_reference(id); original_color.color=source; shifted_color.color=Color.from_hsv(fposmod(source.h+hue.value/360.0,1),source.s,source.v)
+	var delta = host.Player.adjustment(host.hues.get(id,0))
+	mask_name.text=name; hue.set_value_no_signal(fposmod(delta.x+180.0,360.0)-180.0)
+	saturation.set_value_no_signal(delta.y); brightness.set_value_no_signal(delta.z)
+	var source=host.mask_reference(id); original_color.color=source; shifted_color.color=Color.from_hsv(fposmod(source.h+delta.x/360.0,1),clampf(source.s+delta.y,0,1),clampf(source.v+delta.z,0,1))
 func add_mask():
 	if model().mask_count>=32768: host.notify("마스크 한도에 도달했습니다."); return
 	host.edit("마스크 추가",func(): model().mask_count+=1; model().touch())

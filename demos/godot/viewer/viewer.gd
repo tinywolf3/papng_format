@@ -17,6 +17,8 @@ var toggles: Dictionary = {}
 var open_dialog: FileDialog
 var attach_dialog: FileDialog
 var color_dialog: ConfirmationDialog
+var color_adjustments: Array[SpinBox] = []
+var updating_color = false
 var color_picker: ColorPicker
 var color_index: SpinBox
 var color_name: Label
@@ -84,7 +86,7 @@ func build_ui():
 	play_button = button(bar,"▶ 재생",func(): session.send({"type":"play"}),"Space")
 	button(bar,"↺",func(): session.send({"type":"restart"}),"Home · 처음부터")
 	button(bar,"→",func(): session.send({"type":"step"}),"Right · 다음 방문")
-	button(bar,"색상",show_colors,"Ctrl+M · 마스크 색상각 변경")
+	button(bar,"색상",show_colors,"Ctrl+M · 마스크 HSV 변경")
 	button(bar,"배경",show_background,"Ctrl+B · 체크무늬 / 단색 / 참고 이미지")
 	toggle(bar,"마스크","highlight","M · 마스크 영역 강조")
 	toggle(bar,"힌트","hints","H · 바운딩 박스 / pivot / 출력 힌트")
@@ -125,8 +127,19 @@ func build_color_dialog():
 	color_index = SpinBox.new(); color_index.min_value = 0; color_index.step = 1; color_index.prefix = "마스크"; column.add_child(color_index)
 	color_index.value_changed.connect(func(_value): update_color_selection())
 	color_name = Label.new(); color_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; column.add_child(color_name)
-	var note = Label.new(); note.text = "선택한 색의 색상각(H)을 사용합니다.\n원본의 명도·채도와 픽셀별 알파는 유지합니다.\n적용하면 재생을 멈추고 처음부터 복원합니다."; note.add_theme_font_size_override("font_size",14); column.add_child(note)
+	var note = Label.new(); note.text = "평균색을 기준으로 HSV 변화량을 선택합니다.\nS/V는 −1~+1 가산 차이이며 결과는 0~1로 제한됩니다.\n픽셀별 알파는 유지하며, 적용하면 처음부터 복원합니다."; note.add_theme_font_size_override("font_size",14); column.add_child(note)
 	color_picker = ColorPicker.new(); color_picker.edit_alpha = false; color_picker.can_add_swatches = false; color_picker.sampler_visible = false; color_picker.presets_visible = false; color_picker.sliders_visible = false; color_picker.hex_visible = false; color_picker.color_modes_visible = false; column.add_child(color_picker)
+	color_picker.color_changed.connect(func(color):
+		if updating_color: return
+		var original: Color = color_details().get("colors",{}).get(int(color_index.value),Color(0.5,0.5,0.5))
+		color_adjustments[0].set_value_no_signal(fposmod((color.h-original.h)*360.0+180.0,360.0)-180.0)
+		color_adjustments[1].set_value_no_signal(color.s-original.s)
+		color_adjustments[2].set_value_no_signal(color.v-original.v))
+	for i in 3:
+		var row = HBoxContainer.new(); column.add_child(row)
+		var label = Label.new(); label.text = ["ΔH (°)","ΔS 채도","ΔV 명도"][i]; label.custom_minimum_size.x = 100; row.add_child(label)
+		var field = SpinBox.new(); field.min_value = -180 if i == 0 else -1; field.max_value = 180 if i == 0 else 1; field.step = 1 if i == 0 else 0.01; field.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(field); color_adjustments.append(field)
+		field.value_changed.connect(func(_v): sync_color_swatch())
 	color_reset = button(column,"원본색으로 되돌리기",func(): reset_colors(color_target.selected == 1); update_color_selection())
 	color_dialog.confirmed.connect(apply_color)
 
@@ -141,12 +154,21 @@ func update_color_selection():
 	var name = "마스크 %d" % id
 	for group in details.get("groups",[]):
 		if group.indices.size() == 1 and group.indices[0] == id: name = group.name; break
-	var original: Color = details.get("colors",{}).get(id,Color(0.5,0.5,0.5))
-	var usable = count > 0 and original.s > 0
+	var usable = count > 0 and details.get("colors",{}).has(id)
 	color_dialog.get_ok_button().disabled = not usable
-	color_name.text = name if usable else name + " · 유효한 유색 픽셀이 없습니다"
-	color_picker.color = Color.from_hsv(fposmod(original.h+offsets[color_target.selected].get(id,0.0)/360.0,1.0),original.s,original.v)
+	color_name.text = name if usable else name + " · 유효한 픽셀이 없습니다"
+	var delta = Session.Player.adjustment(offsets[color_target.selected].get(id,0.0))
+	color_adjustments[0].set_value_no_signal(fposmod(delta.x+180.0,360.0)-180.0)
+	color_adjustments[1].set_value_no_signal(delta.y); color_adjustments[2].set_value_no_signal(delta.z)
+	sync_color_swatch()
 	if not view.info.is_empty() and color_target.selected == 0: session.send({"type":"select_mask","index":id})
+
+func sync_color_swatch():
+	if color_adjustments.size() != 3: return
+	var original: Color = color_details().get("colors",{}).get(int(color_index.value),Color(0.5,0.5,0.5))
+	updating_color = true
+	color_picker.color = Color.from_hsv(fposmod(original.h+color_adjustments[0].value/360.0,1.0),clampf(original.s+color_adjustments[1].value,0,1),clampf(original.v+color_adjustments[2].value,0,1))
+	updating_color = false
 
 func show_background(): background_dialog.open_settings()
 
@@ -159,9 +181,8 @@ func show_colors():
 	color_dialog.popup_centered_clamped(Vector2i(440,540),0.92)
 
 func apply_color():
-	var details = color_details(); var id = int(color_index.value)
-	var original: Color = details.get("colors",{}).get(id,Color(0.5,0.5,0.5))
-	var delta = fposmod((color_picker.color.h-original.h)*360.0+180.0,360.0)-180.0
+	var id = int(color_index.value)
+	var delta = Vector3(color_adjustments[0].value,color_adjustments[1].value,color_adjustments[2].value)
 	offsets[color_target.selected][id] = delta
 	session.send({"type":"hue","index":id,"offset":delta,"child":color_target.selected == 1})
 

@@ -92,7 +92,7 @@ class FDocument {
     TStrongObjectPtr<UTexture2D> Image, Highlight;
     bool Playing = true;
     int Clip = -1;
-    TArray<float> Offsets;
+    TArray<float> Offsets, SaturationOffsets, ValueOffsets;
     explicit FDocument(const FString &Path) {
         auto Shared = Handle;
         Pending = Async(EAsyncExecution::ThreadPool, [Shared, Path]() {
@@ -135,6 +135,8 @@ class FDocument {
             if (State.Ended || !State.Error.IsEmpty())
                 Playing = false;
             Offsets.SetNumZeroed(State.Masks);
+            SaturationOffsets.SetNumZeroed(State.Masks);
+            ValueOffsets.SetNumZeroed(State.Masks);
         }
         if (!Pending.IsValid() && Handle->Value && State.Error.IsEmpty() && (Playing || Commands.Num())) {
             auto Shared = Handle;
@@ -169,6 +171,14 @@ class FDocument {
         Playing = false;
         Offsets[Index] = Degrees;
         Commands.Add([Index, Degrees](void *H) { pp_mask(H, Index, Degrees); });
+    }
+    void MaskHsv(int Index, float Degrees, float Saturation, float Value) {
+        if (!Offsets.IsValidIndex(Index)) return;
+        Playing = false;
+        Offsets[Index] = Degrees;
+        SaturationOffsets[Index] = FMath::Clamp(Saturation, -1.f, 1.f);
+        ValueOffsets[Index] = FMath::Clamp(Value, -1.f, 1.f);
+        Commands.Add([Index, Degrees, Saturation, Value](void *H) { pp_mask_hsv(H, Index, Degrees, Saturation, Value); });
     }
     void Select(int Index) {
         Playing = false;

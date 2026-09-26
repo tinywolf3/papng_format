@@ -159,14 +159,27 @@ func raw(frame: int) -> PackedByteArray:
 		source_cache[frame] = bytes; source_bytes += bytes.size()
 	return bytes
 
-static func hue(r: int, g: int, b: int, degrees: float) -> PackedByteArray:
+static func adjustment(value) -> Vector3:
+	var scalar = 0.0 if value is Vector3 else float(value)
+	var result = value if value is Vector3 else Vector3(fposmod(scalar,360.0) if is_finite(scalar) else 0,0,0)
+	for i in 3:
+		if not is_finite(result[i]): result[i]=0
+	result.x=fposmod(result.x,360.0); result.y=clampf(result.y,-1,1); result.z=clampf(result.z,-1,1)
+	return result
+
+static func hue(r: int, g: int, b: int, degrees: float, ds: float = 0, dv: float = 0) -> PackedByteArray:
+	var angle = fposmod(degrees,360.0) if is_finite(degrees) else 0.0
+	ds = clampf(ds,-1,1) if is_finite(ds) else 0.0
+	dv = clampf(dv,-1,1) if is_finite(dv) else 0.0
+	if angle == 0 and ds == 0 and dv == 0: return PackedByteArray([r,g,b])
 	var high = maxi(r,maxi(g,b)); var low = mini(r,mini(g,b)); var chroma = high-low
-	if chroma == 0 or fposmod(degrees,360.0) == 0: return PackedByteArray([r,g,b])
-	var sector = float(g-b)/chroma if high == r else float(b-r)/chroma+2 if high == g else float(r-g)/chroma+4
-	sector = fposmod(sector+degrees/60.0,6.0)
-	var x = chroma*(1-absf(fposmod(sector,2.0)-1))
-	var channels = [[chroma,x,0],[x,chroma,0],[0,chroma,x],[0,x,chroma],[x,0,chroma],[chroma,0,x]][int(floor(sector))]
-	return PackedByteArray([int(floor(channels[0]+low+0.5)),int(floor(channels[1]+low+0.5)),int(floor(channels[2]+low+0.5))])
+	var sector = 0.0 if chroma == 0 else float(g-b)/chroma if high == r else float(b-r)/chroma+2 if high == g else float(r-g)/chroma+4
+	sector = fposmod(sector+angle/60.0,6.0)
+	var sat=clampf((0.0 if high == 0 else float(chroma)/high)+ds,0,1)
+	var val=clampf(high+dv*255.0,0,255)
+	var c=val*sat; var m=val-c; var x=c*(1-absf(fposmod(sector,2.0)-1))
+	var channels = [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][int(floor(sector))]
+	return PackedByteArray([clampi(int(floor(channels[0]+m+0.5+1e-10)),0,255),clampi(int(floor(channels[1]+m+0.5+1e-10)),0,255),clampi(int(floor(channels[2]+m+0.5+1e-10)),0,255)])
 
 func dispose():
 	var f = doc.frames[state.frame]
@@ -197,8 +210,11 @@ func draw_frame(index: int):
 			var s = (y*f.width+x)*4; var dest = ((y+f.y)*doc.width+x+f.x)*4
 			var word = 0 if mask.is_empty() else (mask[s/2]<<8)|mask[s/2+1]
 			var assigned = (word & 0x8000) != 0
-			var delta = offsets.get(word & 0x7fff,0.0) if assigned else 0.0
-			var rgb = hue(source[s],source[s+1],source[s+2],delta)
+			var setting = offsets.get(word & 0x7fff,0.0) if assigned else 0.0
+			var finite = setting.is_finite() if setting is Vector3 else is_finite(float(setting))
+			if not finite: doc.warn("유한하지 않은 HSV 변화량: 해당 성분을 0으로 복구")
+			var delta = adjustment(setting)
+			var rgb = hue(source[s],source[s+1],source[s+2],delta.x,delta.y,delta.z)
 			var sa = source[s+3]/255.0; var da = state.pixels[dest+3]/255.0
 			var a = sa+da*(1-sa)
 			if f.blend == 0 or source[s+3] == 255:

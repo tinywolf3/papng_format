@@ -4,8 +4,8 @@ import { assert, type Control, type Papng, type Warn } from './types';
 export function parseExtension(bytes: Uint8Array, doc: Papng, warn: Warn) {
   const r = new Reader(bytes);
   r.bytes(8); const major = r.u16(), minor = r.u16(), size = r.u32();
-  assert(major === 1 && size >= 56 && size <= bytes.length && (minor !== 0 || size === 56), '사용할 수 없는 paEX 헤더');
-  if (minor > 0) warn(`PAPNG 1.${minor}: 알려진 기능만 사용`);
+  assert(major === 1 && size >= 56 && size <= bytes.length && (minor > 1 || size === 56), '사용할 수 없는 paEX 헤더');
+  if (minor > 1) warn(`PAPNG 1.${minor}: 알려진 기능만 사용`);
   const flags = r.u32(), dw = r.u32(), dh = r.u32(), bx = r.i32(), by = r.i32(), bw = r.u32(), bh = r.u32(), scale = r.u32(), px = r.i32(), py = r.i32();
   if (flags & 1) { if (dw && dh) doc.hints.display = [dw,dh]; else warn('잘못된 출력 크기 힌트 무시'); }
   if (flags & 2) { if (bx >= 0 && by >= 0 && bw && bh && bx+bw <= doc.width && by+bh <= doc.height) doc.hints.bbox = [bx,by,bw,bh]; else warn('잘못된 바운딩 박스 힌트 무시'); }
