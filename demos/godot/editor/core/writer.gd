@@ -7,12 +7,28 @@ static func packed(values: Array, sizes: Array) -> PackedByteArray:
 	for i in values.size(): out.append_array(Bin.be(int(values[i]),sizes[i]))
 	return out
 
-static func pixels(frame: Dictionary) -> PackedByteArray:
-	var raw = PackedByteArray()
-	var stride = frame.width*4
-	for y in frame.height:
-		raw.append(0); raw.append_array(frame.rgba.slice(y*stride,(y+1)*stride))
-	return raw.compress(FileAccess.COMPRESSION_DEFLATE)
+static func digest(bytes: PackedByteArray) -> String:
+	var hash=HashingContext.new(); hash.start(HashingContext.HASH_SHA256); hash.update(bytes)
+	return hash.finish().hex_encode()
+
+static func pixels(frame: Dictionary, encoder, cache: Dictionary) -> PackedByteArray:
+	var key="%dx%d:%s" % [frame.width,frame.height,digest(frame.rgba)]
+	if cache.frames.has(key) and cache.frames[key].rgba==frame.rgba: return cache.frames[key].data
+	var data: PackedByteArray
+	if encoder!=null: data=encoder.encode(frame.rgba,frame.width,frame.height)
+	else:
+		# Source-only fallback; distributed builds include the native encoder.
+		var raw=PackedByteArray(); var stride=frame.width*4
+		raw.resize((stride+1)*frame.height)
+		for y in frame.height:
+			var at=y*(stride+1)
+			for x in stride: raw[at+x+1]=frame.rgba[y*stride+x]
+		data=raw.compress(FileAccess.COMPRESSION_DEFLATE)
+	var size=frame.rgba.size()+data.size()
+	if size<=16*1024*1024:
+		if cache.bytes+size>16*1024*1024: cache.frames.clear(); cache.bytes=0
+		cache.frames[key]={"rgba":frame.rgba,"data":data}; cache.bytes+=size
+	return data
 
 static func extension(model) -> PackedByteArray:
 	var h = model.hints
@@ -47,8 +63,7 @@ static func masks(model) -> PackedByteArray:
 		for n in range(0,f.mask.size(),2):
 			if f.mask[n] & 0x80: active = true; break
 		if not active: continue
-		var hash = HashingContext.new(); hash.start(HashingContext.HASH_SHA256); hash.update(f.mask)
-		var key = "%dx%d:%s" % [f.width,f.height,hash.finish().hex_encode()]
+		var key = "%dx%d:%s" % [f.width,f.height,digest(f.mask)]
 		if not ids.has(key):
 			ids[key] = maps.size(); maps.append({"w":f.width,"h":f.height,"data":f.mask.compress(FileAccess.COMPRESSION_DEFLATE)})
 		references.append([i,ids[key]])
@@ -60,6 +75,8 @@ static func masks(model) -> PackedByteArray:
 	return out
 
 static func encode(model) -> PackedByteArray:
+	var encoder=ClassDB.instantiate("PapngPngEncoder") if ClassDB.class_exists("PapngPngEncoder") else null
+	var cache={"bytes":0,"frames":{}}
 	var out = PackedByteArray(SIGNATURE)
 	out.append_array(Bin.chunk("IHDR",packed([model.width,model.height,8,6,0,0,0],[4,4,1,1,1,1,1])))
 	out.append_array(Bin.chunk("acTL",packed([model.frames.size(),model.plays],[4,4])))
@@ -67,19 +84,25 @@ static func encode(model) -> PackedByteArray:
 	var planes = masks(model)
 	if not planes.is_empty(): out.append_array(Bin.chunk("paMD",planes))
 	if not model.metadata_text.is_empty():
-		out.append_array(Bin.chunk("iTXt","PAPNG.Metadata".to_utf8_buffer()+PackedByteArray([0,0,0,0,0])+model.metadata_text.to_utf8_buffer()))
+		var text=model.metadata_text.to_utf8_buffer()
+		var compressed=text.compress(FileAccess.COMPRESSION_DEFLATE)
+		var use_compressed=not compressed.is_empty() and compressed.size()<text.size()
+		out.append_array(Bin.chunk("iTXt","PAPNG.Metadata".to_utf8_buffer()+PackedByteArray([0,int(use_compressed),0,0,0])+(compressed if use_compressed else text)))
 	for chunk in model.ancillary: out.append_array(Bin.chunk(chunk.name,chunk.data))
 	var sequence = 0
 	# A separate fallback image permits the first animation frame to be a subrectangle.
 	var poster = model.frames[0].width != model.width or model.frames[0].height != model.height or model.frames[0].x != 0 or model.frames[0].y != 0
 	if poster:
 		var rgba = model.composite(0)
-		out.append_array(Bin.chunk("IDAT",pixels({"width":model.width,"height":model.height,"rgba":rgba})))
+		var data=pixels({"width":model.width,"height":model.height,"rgba":rgba},encoder,cache)
+		if data.is_empty(): return PackedByteArray()
+		out.append_array(Bin.chunk("IDAT",data))
 	for i in model.frames.size():
 		var f = model.frames[i]
 		out.append_array(Bin.chunk("fcTL",packed([sequence,f.width,f.height,f.x,f.y,f.num,f.den,f.dispose,f.blend],[4,4,4,4,4,2,2,1,1])))
 		sequence += 1
-		var data = pixels(f)
+		var data = pixels(f,encoder,cache)
+		if data.is_empty(): return PackedByteArray()
 		if i == 0 and not poster: out.append_array(Bin.chunk("IDAT",data))
 		else:
 			out.append_array(Bin.chunk("fdAT",Bin.be(sequence,4)+data)); sequence += 1

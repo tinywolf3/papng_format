@@ -295,7 +295,7 @@ func poll_intent():
 	elif intent.getAction()=="android.intent.action.SEND": uri=intent.getParcelableExtra("android.intent.extra.STREAM")
 	if uri==null: return
 	var path=str(uri.toString()); var name=MobileImporter.display_name(path)
-	if name.get_extension().to_lower() in ["papng","apng","png"]: request_open(path)
+	if name.get_extension().to_lower() in ["papng","apng","png","gif"] or MobileImporter.is_gif(path): request_open(path)
 	else: import_path(path)
 func modal_open() -> bool: return (sheet!=null and sheet.visible) or super.modal_open()
 func show_distributions(): distribution_dialog.open_palette()

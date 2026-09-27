@@ -1,0 +1,10 @@
+[configuration]
+entry_symbol = "papng_gif_init"
+compatibility_minimum = "4.4"
+reloadable = false
+
+[libraries]
+linux.x86_64 = "../../../../builds/linux/papng-editor/native/papng_gif.so"
+windows.x86_64 = "../../../../builds/windows/papng-editor/native/papng_gif.dll"
+android.arm64 = "../../../../builds/android/papng-editor/native/arm64-v8a/libpapng_gif.so"
+android.x86_64 = "../../../../builds/android/papng-editor/native/x86_64/libpapng_gif.so"

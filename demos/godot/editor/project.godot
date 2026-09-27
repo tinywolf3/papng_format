@@ -2,7 +2,7 @@ config_version=5
 
 [application]
 config/name="PAPNG Editor"
-config/version="0.3.1"
+config/version="0.6.0"
 run/main_scene="res://start.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
@@ -14,6 +14,9 @@ window/size/window_width_override=1440
 window/size/window_height_override=940
 window/dpi/allow_hidpi=true
 window/handheld/orientation=6
+
+[compression]
+formats/zlib/compression_level=9
 
 [rendering]
 renderer/rendering_method="gl_compatibility"

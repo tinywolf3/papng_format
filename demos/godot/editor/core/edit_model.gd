@@ -6,6 +6,7 @@ const Writer = preload("res://core/writer.gd")
 const Metadata = preload("res://core/metadata_edit.gd")
 const Parser = preload("res://core/json5.gd")
 const Bin = preload("res://core/binary.gd")
+const IO = preload("res://core/file_io.gd")
 const MAX_BYTES = 256*1024*1024
 signal changed
 var width = 32
@@ -174,16 +175,19 @@ func paste(data: Dictionary, position: Vector2i, over: bool = true):
 			set_pixel(point,color,mask)
 	changed.emit()
 func load_file(file_path: String, cancelled: Callable = Callable()) -> bool:
-	var doc = Doc.new()
-	if not doc.load_file(file_path,cancelled): error = doc.error; return false
+	var input=IO.read_bytes(file_path,cancelled)
+	if input.has("error"): error=input.error; return false
+	var doc = Doc.new(); doc.cancel=cancelled
+	if not doc.load_bytes(input.bytes): error = doc.error; return false
 	var loaded = []; var total = 0
 	for i in doc.frames.size():
 		if cancelled.is_valid() and cancelled.call(): error = "불러오기 취소"; return false
 		var f = doc.frames[i].duplicate(true)
+		# Check the editing budget before allocating this frame's RGBA and mask.
+		total += f.width*f.height*(6 if doc.bindings.has(i) else 4)
+		if total > MAX_BYTES: error = "편집 이미지가 256 MiB 작업 예산을 초과합니다"; return false
 		f.rgba = doc.decode(i); f.mask = doc.mask(i); f.erase("data"); f.control = {}
 		if not doc.error.is_empty(): error = doc.error; return false
-		total += f.rgba.size()+f.mask.size()
-		if total > MAX_BYTES: error = "편집 이미지가 256 MiB 작업 예산을 초과합니다"; return false
 		loaded.append(f)
 	var player = Player.new(doc)
 	for i in doc.controls:
@@ -195,12 +199,26 @@ func load_file(file_path: String, cancelled: Callable = Callable()) -> bool:
 		if not d.get("valid",true): d.kind = 0; d.valid = true; d.items = []
 	metadata_text = doc.metadata_text if not doc.metadata_text.is_empty() else "{schema_version: 1}"
 	ancillary = []
-	var reader = Bin.new(FileAccess.get_file_as_bytes(file_path)); reader.pos = 8
+	var reader = Bin.new(input.bytes); reader.pos = 8
+	var metadata_keyword="PAPNG.Metadata".to_ascii_buffer()+PackedByteArray([0])
 	while reader.pos < reader.data.size():
 		var count = reader.u(4); var name = reader.take(4).get_string_from_ascii(); var data = reader.take(count); reader.u(4)
 		if name.length() == 4 and name[0] == name[0].to_lower() and name[3] == name[3].to_lower() and name != "iTXt": ancillary.append({"name":name,"data":data})
-		elif name == "iTXt" and not data.slice(0,15).get_string_from_ascii().begins_with("PAPNG.Metadata"): ancillary.append({"name":name,"data":data})
+		elif name == "iTXt" and data.slice(0,metadata_keyword.size()) != metadata_keyword: ancillary.append({"name":name,"data":data})
 	selected = 0; path = file_path; warnings = doc.warnings.duplicate(); error = ""; reset_history(); invalidate(); repair_metadata()
+	return true
+
+func load_gif(data: Dictionary, file_path: String) -> bool:
+	if data.is_empty() or data.get("width",0)<1 or data.get("height",0)<1 or data.get("frames",[]).is_empty(): error="GIF 변환 결과가 비어 있습니다"; return false
+	var loaded=[]; var total=0
+	for source in data.frames:
+		var frame={"width":data.width,"height":data.height,"x":0,"y":0,"num":source.num,"den":source.den,"dispose":0,"blend":0,"rgba":source.rgba,"mask":PackedByteArray(),"control":{}}
+		total+=frame.rgba.size()
+		if frame.rgba.size()!=data.width*data.height*4 or total>MAX_BYTES: error="GIF 프레임 데이터가 편집 예산을 초과합니다"; return false
+		loaded.append(frame)
+	width=data.width; height=data.height; frames=loaded; plays=data.get("plays",0); selected=0; path=file_path
+	hints={}; mask_count=0; distributions=[{"kind":0,"valid":true,"items":[]}]; metadata_text="{schema_version: 1}"; ancillary=[]; warnings=[]; error=""
+	reset_history(); invalidate()
 	return true
 func repair_metadata():
 	# Readers recover optional metadata, but form controls must receive only valid values.
@@ -278,6 +296,7 @@ func save_file(file_path: String) -> bool:
 	error = validate()
 	if not error.is_empty(): return false
 	var bytes = Writer.encode(self)
+	if bytes.is_empty() or bytes.size()>IO.LIMIT: error="저장 데이터가 비어 있거나 128 MiB 파일 예산을 초과합니다"; return false
 	var verify = Doc.new()
 	if not verify.load_bytes(bytes) or not verify.warnings.is_empty(): error = "저장 데이터 검증 실패: "+verify.error+"; ".join(verify.warnings); return false
 	var temporary = file_path+".papng-editor-"+str(Time.get_ticks_usec())+".tmp"

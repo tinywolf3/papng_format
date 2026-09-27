@@ -30,6 +30,10 @@ __tests__/
 /tools/editor/*
 !/tools/editor/build.py
 !/tools/editor/common.py
+!/tools/editor/native.py
+!/tools/converter/
+/tools/converter/*
+!/tools/converter/build.py
 
 # OS and user-specific editor files
 .DS_Store

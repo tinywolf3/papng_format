@@ -1,48 +1,77 @@
 extends RefCounted
-## Native decoders first. Optional ImageMagick broadens runtime import formats.
+## Only bundled or operating-system decoders are used at runtime.
+const IO = preload("res://core/file_io.gd")
+const NATIVE = ["png","jpg","jpeg","webp","bmp","tga","svg","exr","hdr","dds","ktx"]
+const MAX_PIXELS = 32*1024*1024
 var error = ""
 var decoder = ""
 var cancelled = false
-var converter = ""
-const NATIVE = ["png","jpg","jpeg","webp","bmp","tga","svg","exr","hdr","dds","ktx"]
-const EXTRA = ["gif","tif","tiff","avif","heic","heif","jxl","ico","psd","psb","xcf","ora","jp2","j2k","pcx","ppm","pgm","pbm","pnm","qoi","dng","cr2","cr3","nef","arw","raf","rw2"]
-func find_converter() -> String:
-	if not converter.is_empty() and FileAccess.file_exists(converter): return converter
-	var executable = "magick.exe" if OS.get_name()=="Windows" else "magick"
-	for folder in OS.get_environment("PATH").split(";" if OS.get_name()=="Windows" else ":"):
-		var candidate=folder.path_join(executable)
-		if FileAccess.file_exists(candidate): return candidate
-	return ""
+
+func supported_extensions() -> Array: return NATIVE+["gif"]
+func image_name(path: String) -> String: return path.get_file()
+
+func normalize(image: Image) -> Image:
+	if cancelled: error="가져오기를 취소했습니다"; return null
+	if image.is_empty(): error="이미지가 비어 있습니다"; return null
+	if image.get_width()*image.get_height()>MAX_PIXELS: error="이미지가 32 메가픽셀 처리 예산을 초과합니다"; return null
+	if image.is_compressed() and image.decompress()!=OK: error="압축 텍스처를 해제하지 못했습니다"; return null
+	image.clear_mipmaps(); image.convert(Image.FORMAT_RGBA8)
+	return image
+
 func load_image(path: String) -> Image:
-	error=""; decoder=""; cancelled=false
-	var extension=path.get_extension().to_lower()
-	if extension in NATIVE:
-		var native=Image.new()
-		if native.load(path)==OK and not native.is_empty():
-			if native.is_compressed() and native.decompress()!=OK: error="압축 텍스처를 해제하지 못했습니다"; return null
-			if native.get_width()*native.get_height()>32*1024*1024: error="가져오기 이미지가 32 메가픽셀 처리 예산을 초과합니다"; return null
-			native.clear_mipmaps(); native.convert(Image.FORMAT_RGBA8); decoder="Godot"; return native
-	if not extension in NATIVE+EXTRA: error="지원하는 이미지 확장자가 아닙니다"; return null
-	var program=find_converter()
-	if program.is_empty(): error="이 형식은 ImageMagick 7이 필요합니다. 설치 후 설정에서 magick 실행 파일을 지정하세요."; return null
-	var folder=ProjectSettings.globalize_path("user://import-cache")
-	DirAccess.make_dir_recursive_absolute(folder)
-	var output=folder.path_join("import-"+str(Time.get_ticks_usec())+".png")
-	# Arrays go directly to the process API, never through a command shell.
-	# Pixel selectors permit the first page/layer of GIF/TIFF/PSD and similar files.
-	var args=PackedStringArray(["-limit","memory","256MiB","-limit","map","512MiB","-limit","disk","512MiB","-limit","time","45","-define","registry:temporary-path="+folder,path+"[0]","-auto-orient","-resize","4096x4096>","-depth","8","PNG32:"+output])
-	var pid=OS.create_process(program,args,false)
-	if pid<0: error="ImageMagick을 실행하지 못했습니다"; return null
-	var deadline=Time.get_ticks_msec()+60000
-	while OS.is_process_running(pid):
-		if cancelled or Time.get_ticks_msec()>deadline:
-			OS.kill(pid); error="가져오기를 취소했습니다" if cancelled else "이미지 변환이 60초를 초과했습니다"; break
-		OS.delay_msec(25)
+	error=""; decoder=""
+	var extension=image_name(path).get_extension().to_lower()
+	if not extension in supported_extensions() and not path.begins_with("content://"): error="지원하는 이미지 확장자가 아닙니다"; return null
+	var input=IO.read_bytes(path,func(): return cancelled)
+	if input.has("error"): error=input.error; return null
+	var data: PackedByteArray=input.bytes
+	if extension=="gif" or gif_signature(data):
+		var gif=decode_gif(data,true)
+		if gif.is_empty(): return null
+		return Image.create_from_data(gif.width,gif.height,false,Image.FORMAT_RGBA8,gif.frames[0].rgba)
+	if not extension in NATIVE: return load_platform_image(data)
 	var image=Image.new()
-	if error.is_empty() and (not FileAccess.file_exists(output) or image.load(output)!=OK): error="이미지 변환에 실패했습니다. 설치된 ImageMagick의 해당 형식 지원을 확인하세요."
-	if FileAccess.file_exists(output): DirAccess.remove_absolute(output)
-	if not error.is_empty(): return null
-	image.convert(Image.FORMAT_RGBA8); decoder="ImageMagick · 첫 이미지 / 최대 4096×4096"; return image
+	var method="load_%s_from_buffer" % ("jpg" if extension=="jpeg" else extension)
+	var result=ERR_UNAVAILABLE
+	if image.has_method(method): result=image.call(method,data)
+	elif extension=="hdr":
+		# HDR has no buffer API in Godot 4.7. Opaque SAF URIs need a typed cache path.
+		if path.begins_with("content://"):
+			var cache="user://import-%d.hdr" % Time.get_ticks_usec()
+			var output=FileAccess.open(cache,FileAccess.WRITE)
+			if output==null: error="이미지 작업 공간을 만들지 못했습니다"; return null
+			output.store_buffer(data); output.close(); result=image.load(cache); DirAccess.remove_absolute(cache)
+		else: result=image.load(path)
+	if result!=OK: error="이미지 디코딩에 실패했습니다"; return null
+	decoder="Godot"
+	return normalize(image)
+
+func load_platform_image(_data: PackedByteArray) -> Image:
+	error="지원하는 이미지 형식이 아닙니다"; return null
+
+static func gif_signature(bytes: PackedByteArray) -> bool:
+	return bytes.slice(0,6).get_string_from_ascii() in ["GIF87a","GIF89a"]
+static func is_gif(path: String) -> bool:
+	var file=FileAccess.open(path,FileAccess.READ)
+	if file==null: return false
+	var signature=file.get_buffer(6); file.close()
+	return gif_signature(signature)
+
+func load_gif(path: String, first_only: bool = false) -> Dictionary:
+	error=""; decoder=""
+	var input=IO.read_bytes(path,func(): return cancelled)
+	if input.has("error"): error=input.error; return {}
+	return decode_gif(input.bytes,first_only)
+
+func decode_gif(bytes: PackedByteArray, first_only: bool) -> Dictionary:
+	if not ClassDB.class_exists("PapngGifDecoder"):
+		error="내장 GIF 디코더가 없습니다. 전체 배포본을 사용하거나 소스의 네이티브 확장을 빌드하세요."; return {}
+	var native=ClassDB.instantiate("PapngGifDecoder")
+	var result: Dictionary=native.decode(bytes,first_only,func(): return cancelled)
+	if result.has("error"): error=result.error; return {}
+	decoder="giflib · 첫 이미지" if first_only else "giflib · GIF 애니메이션 %d프레임" % result.frames.size()
+	result.decoder=decoder
+	return result
 
 static func pixelize(source: Image, rect: Rect2i, size: Vector2i, sampling: int, levels: int) -> Image:
 	rect=rect.intersection(Rect2i(Vector2i.ZERO,source.get_size()))

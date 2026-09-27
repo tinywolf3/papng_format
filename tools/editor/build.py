@@ -3,6 +3,7 @@
 import argparse, hashlib, os, shutil, subprocess, tarfile, zipfile
 from pathlib import Path
 from common import ROOT, PROJECT, TOOLS, environment, run_godot
+from native import build as build_native, host
 p=argparse.ArgumentParser();p.add_argument('platforms',nargs='*',choices=['linux','windows','android'],default=['linux','windows']);p.add_argument('--templates',type=Path);args=p.parse_args()
 templates=TOOLS/'templates';templates.mkdir(parents=True,exist_ok=True)
 names=['linux_release.x86_64','linux_debug.x86_64','windows_release_x86_64.exe','windows_debug_x86_64.exe','windows_debug_x86_64_console.exe','android_source.zip','version.txt']
@@ -15,9 +16,11 @@ if args.templates:
             if archive.read('templates/version.txt').decode().strip()!='4.7.2.stable':raise SystemExit('Template version mismatch')
             for name in names:(templates/name).write_bytes(archive.read('templates/'+name))
 if not (templates/'version.txt').exists() or (templates/'version.txt').read_text().strip()!='4.7.2.stable':raise SystemExit('Provide official Godot 4.7.2 export templates via --templates.')
+build_native(host())
 run_godot(['--headless','--editor','--import','--quit'],ROOT/'builds/linux/papng-editor-tests/build-import.log')
 version=(PROJECT/'VERSION').read_text().strip()
 for platform in args.platforms:
+    if platform != host(): build_native(platform)
     out=ROOT/'builds'/platform/'papng-editor';out.mkdir(parents=True,exist_ok=True)
     env=environment()
     if platform=='android':
@@ -49,9 +52,14 @@ for platform in args.platforms:
         target=out/('papng-editor.x86_64' if platform=='linux' else 'papng-editor.exe')
         run_godot(['--headless','--export-release',platform.title(),target],out/'export.log')
         if platform=='linux':target.chmod(0o755)
-    for name in ['Godot-LICENSE.txt','Godot-COPYRIGHT.txt']:shutil.copyfile(PROJECT/'licenses'/name,out/name)
+    licenses=['Godot-LICENSE.txt','Godot-COPYRIGHT.txt','giflib-LICENSE.txt','godot-cpp-LICENSE.txt']
+    for name in licenses:shutil.copyfile(PROJECT/'licenses'/name,out/name)
     shutil.copyfile(ROOT/'LICENSE',out/'LICENSE.txt');shutil.copyfile(PROJECT/'README.md',out/'README.md')
-    files=[target,out/'README.md',out/'LICENSE.txt',out/'Godot-LICENSE.txt',out/'Godot-COPYRIGHT.txt']
+    files=[target,out/'README.md',out/'LICENSE.txt',*[out/name for name in licenses]]
+    if platform!='android':
+        library=out/('papng_gif.dll' if platform=='windows' else 'papng_gif.so')
+        if not library.is_file(): raise SystemExit(f'Export did not bundle GIF decoder: {library}')
+        files.append(library)
     artifacts=[target]
     if platform!='android':
         archive_path=out/f'papng-editor-{version}-{platform}-x86_64.{"tar.gz" if platform=="linux" else "zip"}'

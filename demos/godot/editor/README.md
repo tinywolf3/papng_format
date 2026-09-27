@@ -1,14 +1,17 @@
 # PAPNG Editor
 
-Linux·Windows·Android용 Godot 4.7.2 픽셀 이미지 편집기입니다. PAPNG·APNG·PNG를 열고, 원본 RGBA와 별도 마스크를 편집한 뒤 PAPNG로 저장합니다. 포맷은 PAPNG 1.1 / 문서 개정 1을 따릅니다.
+Linux·Windows·Android용 Godot 4.7.2 픽셀 이미지 편집기입니다. PAPNG·APNG·PNG·GIF를 열고, 원본 RGBA와 별도 마스크를 편집한 뒤 PAPNG로 저장합니다. 포맷은 PAPNG 1.1 / 문서 개정 1을 따릅니다.
 
 [GIMP의 도구함·이미지 창·도크 구성](https://docs.gimp.org/3.0/en/gimp-concepts-main-windows.html)을 참고했습니다. 왼쪽 도구함, 가운데 원본 프레임, 오른쪽 속성·미니맵·커서 정보, 아래 프레임 목록으로 구성합니다.
 
 ## 실행과 빌드
 
-저장소 루트에서 실행합니다. Python 3.10 이상, Godot **4.7.2 stable**과 같은 버전의 export templates가 필요합니다. `GODOT_BIN`으로 실행 파일을 지정할 수 있습니다.
+저장소 루트에서 실행합니다. Python 3.10 이상, CMake 3.22 이상, C/C++ 컴파일러, Godot **4.7.2 stable**과 같은 버전의 export templates가 필요합니다. `GODOT_BIN`으로 실행 파일을 지정할 수 있습니다.
 
 ```sh
+# 내장 GIF 디코더를 먼저 빌드 (첫 빌드는 고정된 godot-cpp 소스를 다운로드)
+python3 tools/editor/native.py linux
+
 # 소스 실행
 GODOT_BIN=/path/to/godot
 "$GODOT_BIN" --path demos/godot/editor
@@ -19,13 +22,15 @@ python3 tools/editor/build.py linux windows --templates /path/to/templates
 
 템플릿은 압축을 푼 `templates` 디렉터리 또는 공식 `Godot_v4.7.2-stable_export_templates.tpz` 파일을 지정합니다. 뷰어 빌드에서 이미 준비했다면 `--templates`는 생략할 수 있습니다.
 
-출력은 `builds/linux/papng-editor/`와 `builds/windows/papng-editor/`에 생성됩니다. Linux는 `papng-editor.x86_64`, Windows는 `papng-editor.exe`를 실행합니다. 같은 폴더의 압축 파일은 실행 파일과 라이선스를 포함한 휴대용 배포본입니다. 파일 선택기 또는 창에 파일을 끌어 놓아 열 수 있고, 실행 인수로 PAPNG/APNG/PNG 경로를 전달할 수도 있습니다.
+Windows 네이티브 빌드는 Visual Studio C++ 도구를 사용하며, Linux에서 Windows용으로 교차 빌드할 때는 MinGW-w64의 `x86_64-w64-mingw32-gcc/g++`가 필요합니다. 배포본 사용자는 이 빌드 도구들을 설치할 필요가 없습니다.
+
+출력은 `builds/linux/papng-editor/`와 `builds/windows/papng-editor/`에 생성됩니다. Linux는 `papng-editor.x86_64`, Windows는 `papng-editor.exe`를 실행합니다. 같은 폴더의 압축 파일은 실행 파일, 내장 GIF 라이브러리, 라이선스를 포함한 휴대용 배포본입니다. 실행 파일 옆의 `papng_gif.so` / `papng_gif.dll`도 함께 배포해야 합니다. 파일 선택기 또는 창에 파일을 끌어 놓아 열 수 있고, 실행 인수로 PAPNG/APNG/PNG/GIF 경로를 전달할 수도 있습니다.
 
 ```sh
 ./builds/linux/papng-editor/papng-editor.x86_64 -- samples/palette-creature.papng
 ```
 
-Android 빌드에는 Android SDK (platform 36, build-tools 36.1.0), JDK 21과 Gradle의 의존성 다운로드 환경이 필요합니다. `ANDROID_HOME`과 `JAVA_HOME`을 설정하고 다음 명령을 실행합니다.
+Android 빌드에는 Android SDK (platform 36, build-tools 36.1.0), NDK 28.2.13676358(`ANDROID_NDK_HOME`으로 변경 가능), JDK 21과 Gradle의 의존성 다운로드 환경이 필요합니다. `ANDROID_HOME`과 `JAVA_HOME`을 설정하고 다음 명령을 실행합니다.
 
 ```sh
 python3 tools/editor/build.py android --templates /path/to/templates
@@ -45,7 +50,7 @@ Android에서는 같은 문서·재생·저장 코어에 별도의 터치 화면
 - 공유 분포는 종류 선택과 가중치 숫자 입력 폼으로 편집합니다. 마스크 그룹과 자유 메타데이터는 JSON5 편집 창을 사용합니다.
 - 저장되지 않은 작업의 복구 사본을 약 30초마다 백그라운드로 작성하며 다음 실행에서 복구할 수 있습니다. 앱 강제 종료 직전의 변경까지 보장하지는 않으므로 작업 파일은 저장 버튼으로 보관하세요.
 - Android 시스템 파일 선택기로 문서를 열고 저장합니다. 다른 앱의 **연결 프로그램 / 공유**에서도 열 수 있습니다. 전체 저장소 접근 권한이나 인터넷 권한을 요구하지 않습니다.
-- PAPNG·APNG·PNG 열기는 원본 프레임과 확장 정보를 편집합니다. 이미지 가져오기는 Godot 기본 형식에 더해 Android 플랫폼이 지원하는 GIF 첫 이미지·HEIF·AVIF 등을 사용합니다. 기기·Android 버전에 따라 디코더 지원이 달라집니다. 데스크톱 ImageMagick 전용 형식(TIFF·PSD·RAW 등)은 Android에서 지원하지 않으며 PNG 등으로 변환해야 합니다.
+- PAPNG·APNG·PNG 열기는 원본 프레임과 확장 정보를 편집합니다. GIF는 Linux·Windows·Android 공통으로 내장 giflib을 사용해 모든 합성 프레임과 1/100초 단위 지연, 반복 횟수를 편집 문서로 변환합니다. GIF의 0 지연은 PAPNG의 숨김 프레임 의미가 되지 않도록 10ms로 정규화합니다. 이미지 가져오기는 Godot 기본 형식에 더해 내장 giflib의 GIF 첫 이미지와 Android 플랫폼이 지원하는 HEIF·AVIF 등을 사용합니다. 기기·Android 버전에 따라 디코더 지원이 달라집니다. TIFF·PSD·RAW 등은 가져오기 목록에 포함하지 않습니다.
 - Android 문서 제공자는 임시 파일 교체를 지원하지 않을 수 있습니다. 먼저 앱 내부에서 PAPNG를 검증하고 사본을 만든 뒤 선택 문서에 기록하고 다시 읽어 확인합니다. 쓰기 실패 시 앱 내부 사본을 유지하므로 다른 위치로 다시 저장할 수 있습니다. 외부 문서의 원자적 교체는 보장하지 않습니다.
 
 데스크톱에서 `-- --mobile` 실행 인수를 주면 터치 화면을 미리 확인할 수 있습니다. Android 편집기에는 데스크톱용 OS 파일 연결 설치기는 포함하지 않습니다. 기존 이미지 뷰어는 별도 앱으로 유지됩니다.
@@ -80,10 +85,18 @@ Android에서는 같은 문서·재생·저장 코어에 별도의 터치 화면
 **이미지 가져오기**(`Ctrl+I`)에서 파일을 선택하고, 확대·이동하며 사각형을 오려냅니다. 출력 픽셀 수, 비율 유지, 최근접/선형/Lanczos 보간, 채널별 색 단계를 선택한 다음 **선택 영역 복사 → 편집기**로 붙여넣기를 준비합니다. 원본 파일은 수정하지 않습니다.
 
 - Godot 기본 디코더: PNG, JPEG, WebP, BMP, TGA, SVG, EXR, HDR, DDS, KTX. 실제 지원은 설치된 엔진/템플릿에 포함된 디코더를 따릅니다.
-- 선택 사항인 **ImageMagick 7**: GIF, TIFF, PSD/PSB, AVIF/HEIC, JPEG XL, ICO, XCF, ORA, JPEG 2000, PCX, PNM 계열, QOI와 여러 RAW 확장자. 설치된 ImageMagick의 delegate 지원에 따라 읽을 수 있는 형식이 달라집니다.
-- Linux는 배포판의 ImageMagick 7 패키지, Windows는 공식 ImageMagick 7 배포판을 설치합니다. `magick`/`magick.exe`가 PATH에 없으면 편집기 **설정**에서 실행 파일의 전체 경로를 지정합니다. 프로그램이 변환기를 자동 설치하지 않습니다.
-- GIF 같은 다중 이미지의 **첫 이미지**, PSD의 첫 합성 이미지를 가져옵니다. 레이어·페이지·애니메이션 전체를 이 경로로 변환하지 않습니다. PAPNG/APNG 애니메이션은 **열기**를 사용합니다.
-- 기본 가져오기는 32메가픽셀, 변환기는 최대 4096×4096, 픽셀화 출력은 최대 2048×2048로 제한합니다. 변환에는 메모리·디스크 예산과 60초 시간 제한이 있으며 취소할 수 있습니다. 이는 편집기 작업 예산이며 포맷 제한이 아닙니다.
+- 내장 **giflib 6.1.3**: GIF 애니메이션 열기, 첫 프레임 가져오기와 참고 이미지. 별도 프로그램 설치 없이 동작하며 원본 해상도를 유지합니다.
+- Android에서는 운영체제가 제공하는 HEIF·HEIC·AVIF 디코더도 사용합니다. 지원 여부는 기기·Android 버전에 따릅니다.
+- **가져오기**는 GIF의 첫 이미지를 가져옵니다. GIF 애니메이션 전체는 **열기**를 사용합니다.
+- 파일 목록에는 앱에 포함되거나 운영체제가 제공하는 디코더로 읽는 형식만 표시합니다. 외부 변환 프로그램을 실행하지 않습니다.
+- 입력은 128 MiB, 가져오기 이미지는 32메가픽셀, 픽셀화 출력은 최대 2048×2048로 제한합니다. 내장 GIF 로딩은 합성 프레임과 관리 데이터 256 MiB, 60초 예산을 사용하며 취소할 수 있습니다. 이는 편집기 작업 예산이며 포맷 제한이 아닙니다.
+
+## 외부 의존성
+
+- **배포본에 포함**: Godot 실행 엔진과 엔진의 이미지·압축 라이브러리, giflib과 godot-cpp를 정적으로 연결한 이미지 처리 확장. 별도의 giflib 설치는 필요하지 않습니다. 포함된 라이선스는 `licenses/`에서 확인할 수 있습니다.
+- **운영체제 제공**: Linux의 시스템·그래픽 라이브러리, Windows API, Android의 파일 선택기·추가 이미지 디코더.
+- **빌드 전용**: Python, CMake, C/C++ 컴파일러, 고정 버전 godot-cpp 소스와 Godot export templates. Android 빌드는 SDK·NDK·JDK·Gradle도 사용합니다.
+- **편집기에 불필요**: Node.js·npm·TypeScript·npm의 JSON5 패키지는 웹 코드와 개발 도구용입니다. Godot 편집기의 JSON5 파서는 프로젝트에 포함된 GDScript입니다.
 
 ## 프레임과 확장 기능
 
@@ -102,9 +115,11 @@ JSON5 전체 편집으로 주석과 사용자 필드도 기록할 수 있습니�
 
 저장기는 RGBA8 APNG, `paEX`, 중복 마스크를 공유하는 압축 `paMD`, `PAPNG.Metadata` iTXt를 생성합니다. 원본 프레임의 영역·픽셀·마스크·합성·폐기 방식과 PAPNG 확장을 유지합니다. 첫 프레임이 부분 영역이면 PNG용 기본 이미지를 별도로 만듭니다. 원본 압축 스트림·청크 순서는 다시 생성합니다. PNG의 safe-to-copy ancillary 청크와 PAPNG 이외의 iTXt는 보존합니다. 알려지지 않은 안전하지 않은 청크/향후 확장 데이터의 무손실 편집은 지원하지 않습니다.
 
-데스크톱 저장은 구조·값을 검증하고 생성 결과를 다시 읽은 뒤 같은 디렉터리의 임시 파일을 교체합니다. 검증 실패 시 기존 파일을 덮어쓰지 않습니다. PNG/APNG 입력의 일반 **저장**은 PAPNG용 다른 이름 저장 창을 엽니다. 저장되지 않은 작업이 있으면 다른 파일 열기·새 파일·종료 전에 확인합니다.
+PNG의 다섯 가지 고정 필터와 행별 적응형 필터를 각각 zlib 레벨 9로 압축하고 가장 작은 결과를 선택합니다. 완전히 같은 RGBA 프레임은 최대 16 MiB 캐시 안에서 압축 결과를 재사용합니다. 마스크 맵은 중복을 공유하고 레벨 9로 압축하며, JSON5 텍스트는 압축한 쪽이 더 작을 때 iTXt 압축을 사용합니다. 투명 픽셀의 RGB, 알파, 프레임 수·인덱스, 원본 영역과 JSON5 주석은 유지합니다. 저장 크기와 시간은 이미지에 따라 달라집니다.
 
-디코딩한 전체 원본 RGBA와 마스크의 편집 예산은 256 MiB입니다. 파일 작업은 별도 스레드에서 진행합니다. 픽셀 도구·화면 합성은 CPU를 사용하므로 큰 프레임·많은 프레임은 느릴 수 있습니다. 첫 버전은 픽셀아트용 단일 문서 편집기이며 레이어, 자유 회전 선택, 전체 가져오기 애니메이션 변환은 지원하지 않습니다.
+데스크톱 저장은 구조·값을 검증하고 생성 결과를 다시 읽은 뒤 같은 디렉터리의 임시 파일을 교체합니다. 검증 실패 시 기존 파일을 덮어쓰지 않습니다. PNG/APNG/GIF 입력의 일반 **저장**은 PAPNG용 다른 이름 저장 창을 엽니다. 저장되지 않은 작업이 있으면 다른 파일 열기·새 파일·종료 전에 확인합니다.
+
+입력·저장 파일 예산은 128 MiB이며, 디코딩한 전체 원본 RGBA와 마스크의 편집 예산은 256 MiB입니다. 파일 작업은 별도 스레드에서 진행합니다. 픽셀 도구·화면 합성은 CPU를 사용하므로 큰 프레임·많은 프레임은 느릴 수 있습니다. 첫 버전은 픽셀아트용 단일 문서 편집기이며 레이어, 자유 회전 선택, 전체 가져오기 애니메이션 변환은 지원하지 않습니다.
 
 ## 단축키
 

@@ -63,7 +63,6 @@ var job_started=0
 var job_result: Dictionary = {}
 var job_cancelled=false
 var job_importer
-var converter=""
 var refs: Dictionary = {}
 var reference_revision=-1
 var refreshing=false
@@ -81,11 +80,11 @@ func _ready():
 	skin.set_stylebox("normal","Button",button); var pressed=button.duplicate(); pressed.bg_color=Color("347c70"); skin.set_stylebox("pressed","Button",pressed)
 	theme=skin
 	var background=ColorRect.new(); background.color=Color("171e26"); background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); background.mouse_filter=Control.MOUSE_FILTER_IGNORE; add_child(background)
-	build_ui(); build_dialogs(); load_settings(); bind_model(model)
+	build_ui(); build_dialogs(); bind_model(model)
 	get_viewport().files_dropped.connect(func(files): if not files.is_empty() and not busy(): request_open(files[0]))
 	refresh_all(); canvas.fit.call_deferred()
 	for arg in OS.get_cmdline_user_args()+OS.get_cmdline_args():
-		if arg.get_extension().to_lower() in ["papng","apng","png"] and FileAccess.file_exists(arg): request_open.call_deferred(arg); break
+		if arg.get_extension().to_lower() in ["papng","apng","png","gif"] and FileAccess.file_exists(arg): request_open.call_deferred(arg); break
 func configure_window(): get_window().min_size=Vector2i(1100,760)
 func make_importer(): return Importer.new()
 func write_document(document, path: String) -> bool: return document.save_file(path)
@@ -98,7 +97,7 @@ func build_ui():
 	UI.button(menu,"저장",save,"Ctrl+S"); UI.button(menu,"다른 이름…",func(): save_as(),"Ctrl+Shift+S")
 	UI.button(menu,"이미지 가져오기…",func(): import_file_dialog.popup_centered_ratio(0.8),"Ctrl+I")
 	UI.button(menu,"PNG 내보내기…",func(): export_dialog.popup_centered_ratio(0.75))
-	UI.button(menu,"설정",show_settings); UI.button(menu,"도움말",show_help)
+	UI.button(menu,"도움말",show_help)
 	title_info=UI.label(menu,""); title_info.size_flags_horizontal=Control.SIZE_EXPAND_FILL; title_info.horizontal_alignment=HORIZONTAL_ALIGNMENT_RIGHT; title_info.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
 	var toolbar=UI.row(outer)
 	UI.button(toolbar,"↶ 실행 취소",undo,"Ctrl+Z"); UI.button(toolbar,"↷ 다시 실행",redo,"Ctrl+Y")
@@ -155,9 +154,9 @@ func build_ui():
 func file_dialog(title: String, mode: int, filters: PackedStringArray) -> FileDialog:
 	var dialog=FileDialog.new(); dialog.title=title; dialog.file_mode=mode; dialog.access=FileDialog.ACCESS_FILESYSTEM; dialog.filters=filters; dialog.use_native_dialog=false; add_child(dialog); return dialog
 func build_dialogs():
-	open_dialog=file_dialog("PAPNG · APNG · PNG 열기",FileDialog.FILE_MODE_OPEN_FILE,["*.papng,*.apng,*.png ; 이미지 애니메이션"]); open_dialog.file_selected.connect(request_open)
+	open_dialog=file_dialog("PAPNG · APNG · PNG · GIF 열기",FileDialog.FILE_MODE_OPEN_FILE,["*.papng,*.apng,*.png,*.gif ; 이미지 애니메이션"]); open_dialog.file_selected.connect(request_open)
 	save_dialog=file_dialog("PAPNG 저장",FileDialog.FILE_MODE_SAVE_FILE,["*.papng ; PAPNG"]); save_dialog.file_selected.connect(save_to)
-	import_file_dialog=file_dialog("프레임 이미지 가져오기",FileDialog.FILE_MODE_OPEN_FILE,["*."+",*.".join(Importer.NATIVE+Importer.EXTRA)+" ; 이미지 파일","* ; 모든 파일"]); import_file_dialog.file_selected.connect(import_path)
+	import_file_dialog=file_dialog("프레임 이미지 가져오기",FileDialog.FILE_MODE_OPEN_FILE,["*."+",*.".join(make_importer().supported_extensions())+" ; 이미지 파일"]); import_file_dialog.file_selected.connect(import_path)
 	background_file_dialog=file_dialog("편집 배경 이미지 열기",FileDialog.FILE_MODE_OPEN_FILE,import_file_dialog.filters); background_file_dialog.file_selected.connect(load_background)
 	export_dialog=file_dialog("현재 합성 프레임 PNG 내보내기",FileDialog.FILE_MODE_SAVE_FILE,["*.png ; PNG"]); export_dialog.file_selected.connect(export_png)
 	accessory_dialog=file_dialog("소켓에 연결할 부속 이미지",FileDialog.FILE_MODE_OPEN_FILE,["*.papng,*.apng,*.png ; 이미지 애니메이션"]); accessory_dialog.file_selected.connect(load_accessory)
@@ -346,13 +345,19 @@ func start_job(kind: String, path: String):
 	var snapshot=model.state() if kind=="save" else {}; var extras=model.ancillary.duplicate(true) if kind=="save" else []
 	var result=worker.start(func():
 		if kind in ["import","reference"]:
-			var decoder=make_importer(); decoder.converter=converter; job_importer=decoder
+			var decoder=make_importer(); job_importer=decoder
 			var image=decoder.load_image(path); job_result={"ok":image!=null,"image":image,"error":decoder.error,"path":path,"decoder":decoder.decoder}
 		elif kind=="save":
 			var copy=Model.new(); copy.restore(snapshot); copy.ancillary=extras
 			var ok=write_document(copy,path); job_result={"ok":ok,"error":copy.error,"path":path,"revision":snapshot.revision}
 		elif kind=="open":
-			var doc=Model.new(); var ok=doc.load_file(path,func(): return job_cancelled); job_result={"ok":ok,"model":doc,"error":doc.error,"path":path}
+			var doc=Model.new(); var ok=false; var decoder=""
+			if Importer.is_gif(path) or path.get_extension().to_lower()=="gif":
+				var importer=make_importer(); job_importer=importer
+				var data=importer.load_gif(path); ok=doc.load_gif(data,path) if not data.is_empty() else false; decoder=importer.decoder
+				if not ok: doc.error=importer.error if not importer.error.is_empty() else doc.error
+			else: ok=doc.load_file(path,func(): return job_cancelled)
+			job_result={"ok":ok,"model":doc,"error":doc.error,"path":path,"decoder":decoder}
 		else:
 			var doc=Doc.new(); var ok=doc.load_file(path,func(): return job_cancelled); job_result={"ok":ok,"doc":doc,"error":doc.error,"path":path})
 	if result!=OK: worker=null; busy_dialog.hide(); notify("작업 스레드를 시작하지 못했습니다.")
@@ -367,7 +372,7 @@ func finish_job():
 	if job_cancelled: notify("불러오기를 취소했습니다."); return
 	if not result.get("ok",false): notify(result.get("error","작업 실패")); return
 	match job_kind:
-		"open": bind_model(result.model); canvas.fit(); notify("열었습니다: "+result.path+(" · 경고 "+str(model.warnings.size())+"개" if not model.warnings.is_empty() else ""))
+		"open": bind_model(result.model); canvas.fit(); notify("열었습니다: "+result.path+(" · "+result.decoder if not result.get("decoder","").is_empty() else "")+(" · 경고 "+str(model.warnings.size())+"개" if not model.warnings.is_empty() else ""))
 		"import": import_dialog.open_image(result.image,result.path.get_file()+" · "+result.decoder)
 		"reference":
 			canvas.set_reference(result.image); job_result.erase("image"); background_controls.sync(); notify("참고 이미지를 배경에 놓았습니다. 배경 설정에서 위치·배율·불투명도를 조절하세요.")
@@ -398,15 +403,6 @@ func apply_raw():
 				defs.append({"kind":int(d.kind),"valid":true,"items":items})
 			model.distributions=defs; model.touch())
 	if not action_error.is_empty(): raw_dialog.popup_centered_ratio(0.8)
-func show_settings():
-	var dialog=ConfirmationDialog.new(); dialog.title="이미지 가져오기 설정"; add_child(dialog); var box=VBoxContainer.new(); dialog.add_child(box)
-	UI.label(box,"Godot에서 읽지 못하는 형식에는 ImageMagick을 사용합니다.\n자동 검색되지 않으면 magick 실행 파일의 전체 경로를 지정하세요.\n변환기는 첫 이미지/합성 레이어를 읽고 최대 4096 × 4096으로 맞춥니다.")
-	var value=UI.entry(box,"ImageMagick 경로 (비어 있으면 PATH에서 검색)"); value.text=converter; value.custom_minimum_size.x=600
-	dialog.confirmed.connect(func(): converter=value.text.strip_edges(); var cfg=ConfigFile.new(); cfg.set_value("import","converter",converter); cfg.save("user://editor.cfg"); dialog.queue_free())
-	dialog.canceled.connect(dialog.queue_free); dialog.popup_centered()
-func load_settings():
-	var cfg=ConfigFile.new()
-	if cfg.load("user://editor.cfg")==OK: converter=cfg.get_value("import","converter","")
 func show_help():
 	notice_dialog.dialog_text="PAPNG Editor · 픽셀과 애니메이션\n\nB 연필 · E 지우개 · G 채우기 · I 스포이트 · R 선택\nL 직선 · U 사각형 · M 마스크 (Shift로 해제) · K 소켓\n마우스 휠: 정수 배율 · 가운데 버튼 / Space+드래그: 이동\nF 화면 맞춤 · 1 실제 크기 · ← / → 프레임 이동\nCtrl+Space 재생 · Ctrl+Z / Y 실행 취소 / 다시 실행\nCtrl+C / X / V 앱 클립보드 · Ctrl+Shift+V 시스템 이미지 가져오기\nEnter 붙이기 확정 · Esc 취소 · Delete 선택 영역 지우기\n\n가운데 화면은 원본 프레임을 편집합니다. 미니맵과 재생은 합성 결과입니다.\n부분 프레임 바깥을 편집하려면 프레임 탭에서 원본 영역을 넓히세요.\n이미지 복제는 픽셀·마스크·시간을 복사하며 확장 이동 제어는 복사하지 않습니다.\n색상각과 부속 연결은 미리보기 설정이며 저장되는 원본색은 변하지 않습니다."
 	notice_dialog.popup_centered()
