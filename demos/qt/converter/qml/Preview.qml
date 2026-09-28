@@ -6,6 +6,8 @@ Rectangle {
     property alias source: picture.source
     property string caption: ""
     property bool cropEnabled: false
+    property bool pickEnabled: false
+    signal pixelPicked(int x, int y)
     property int sourceWidth: 1
     property int sourceHeight: 1
     property rect cropRect: Qt.rect(0, 0, sourceWidth, sourceHeight)
@@ -38,6 +40,7 @@ Rectangle {
     }
     Item {
         id: viewport
+        objectName: "imageViewport"
         x: picture.x + (picture.width - picture.paintedWidth) / 2
         y: picture.y + (picture.height - picture.paintedHeight) / 2
         width: picture.paintedWidth
@@ -54,11 +57,17 @@ Rectangle {
         }
         MouseArea {
             anchors.fill: parent
-            enabled: root.cropEnabled
+            enabled: (root.cropEnabled || root.pickEnabled) && picture.status === Image.Ready
             cursorShape: Qt.CrossCursor
             property point origin
             onPressed: mouse => { origin = Qt.point(mouse.x, mouse.y) }
             onReleased: mouse => {
+                if (root.pickEnabled) {
+                    if (mouse.x >= 0 && mouse.y >= 0 && mouse.x < width && mouse.y < height)
+                        root.pixelPicked(Math.min(root.sourceWidth - 1, Math.floor(mouse.x / width * root.sourceWidth)),
+                                         Math.min(root.sourceHeight - 1, Math.floor(mouse.y / height * root.sourceHeight)))
+                    return
+                }
                 let x = Math.floor(Math.max(0, Math.min(origin.x, mouse.x)) / width * root.sourceWidth)
                 let y = Math.floor(Math.max(0, Math.min(origin.y, mouse.y)) / height * root.sourceHeight)
                 let right = Math.ceil(Math.min(width, Math.max(origin.x, mouse.x)) / width * root.sourceWidth)

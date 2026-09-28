@@ -20,6 +20,22 @@ void Images::set(const QString &id, const QImage &image) {
 }
 Controller::Controller(Images *images, QObject *parent)
     : QObject(parent), m_images(images), m_tools(pc::Tools::locate()) {
+    connect(&m_originalWatcher, &QFutureWatcher<Job>::finished, this, [this] {
+        auto job = m_originalWatcher.result();
+        m_fetchPending = false;
+        const bool current = ready() && m_fetchGeneration == m_generation;
+        if (current && job.error.isEmpty()) {
+            const int cost = std::max(1, int(job.image.sizeInBytes() / 1024));
+            m_originalCache.insert(m_fetchIndex, new QImage(job.image), cost);
+        }
+        if (ready() && (!current || m_fetchIndex != m_index)) {
+            requestOriginal();
+        } else if (current) {
+            m_comparisonBusy = false;
+            if (job.error.isEmpty()) publishComparison(job.image);
+            else { m_error = job.error; emit changed(); }
+        }
+    });
     connect(&m_watcher, &QFutureWatcher<Job>::finished, this, [this] {
         auto result = m_watcher.result();
         m_busy = false;
@@ -34,7 +50,9 @@ Controller::Controller(Images *images, QObject *parent)
 }
 Controller::~Controller() {
     m_cancel->store(true);
+    m_originalCancel->store(true);
     m_watcher.waitForFinished();
+    m_originalWatcher.waitForFinished();
 }
 void Controller::start(Work work, std::function<void(Job)> done) {
     if (m_busy)
@@ -75,6 +93,10 @@ void Controller::start(Work work, std::function<void(Job)> done) {
     }));
 }
 void Controller::invalidate() {
+    ++m_generation;
+    m_originalCancel->store(true);
+    m_originalCache.clear();
+    m_comparisonBusy = false;
     m_clip = {};
     m_images->set("result", {});
     m_images->set("original", {});
@@ -85,6 +107,7 @@ void Controller::invalidate() {
     emit frameChanged();
 }
 void Controller::setSource(const QImage &image, double time) {
+    m_sourceImage = image;
     m_images->set("source", image);
     m_sourceUrl = "image://frames/source?" + QString::number(++m_revision);
     m_sourceTime = time;
@@ -99,7 +122,7 @@ void Controller::open(const QUrl &url) {
             p("영상 정보와 첫 프레임 읽기", 0.1);
             Job j;
             j.media = pc::probe(tools, path, c);
-            j.image = pc::thumbnail(tools, j.media, 0, c);
+            j.image = pc::thumbnail(tools, j.media, 0, c, true);
             return j;
         },
         [this](Job j) {
@@ -137,7 +160,7 @@ void Controller::seek(double time) {
     start(
         [tools, media, time](const pc::Cancel &c, const pc::Progress &) {
             Job j;
-            j.image = pc::thumbnail(tools, media, time, c);
+            j.image = pc::thumbnail(tools, media, time, c, true);
             j.time = time;
             return j;
         },
@@ -145,6 +168,10 @@ void Controller::seek(double time) {
             setSource(j.image, j.time);
             m_status = "원본 프레임";
         });
+}
+QColor Controller::sourceColor(int x, int y) const {
+    if (!m_sourceImage.rect().contains(x, y)) return {};
+    return m_sourceImage.pixelColor(x, y);
 }
 void Controller::step(int direction) {
     if (m_busy || !m_media.width)
@@ -156,7 +183,7 @@ void Controller::step(int direction) {
         [tools, media, time, direction](const pc::Cancel &c, const pc::Progress &) {
             Job j;
             j.time = pc::adjacentTime(tools, media, time, direction, c);
-            j.image = pc::thumbnail(tools, media, j.time, c);
+            j.image = pc::thumbnail(tools, media, j.time, c, true);
             return j;
         },
         [this](Job j) {
@@ -192,9 +219,37 @@ void Controller::selectFrame(int index) {
     if (!ready())
         return;
     m_index = std::clamp(index, 0, frameCount() - 1);
+    requestOriginal();
+}
+void Controller::requestOriginal() {
+    if (auto image = m_originalCache.object(m_index)) {
+        m_comparisonBusy = false;
+        publishComparison(*image);
+        return;
+    }
+    m_comparisonBusy = true;
+    emit changed();
+    if (m_fetchPending) return;
+    m_fetchPending = true;
+    m_fetchIndex = m_index;
+    m_fetchGeneration = m_generation;
+    m_originalCancel = std::make_shared<std::atomic_bool>(false);
+    auto cancel = m_originalCancel;
+    auto tools = m_tools;
+    auto media = m_media;
+    auto time = m_clip.frames[m_index].sourceTime;
+    m_originalWatcher.setFuture(QtConcurrent::run([tools, media, time, cancel] {
+        Job job;
+        try { job.image = pc::thumbnail(tools, media, time, cancel, true); }
+        catch (const pc::Error &error) { job.error = error.message; }
+        catch (const std::exception &error) { job.error = QString::fromUtf8(error.what()); }
+        return job;
+    }));
+}
+void Controller::publishComparison(const QImage &original) {
     try {
         m_images->set("result", pc::frameImage(m_clip, m_index));
-        m_images->set("original", pc::frameImage(m_clip, m_index, true));
+        m_images->set("original", original);
     } catch (const pc::Error &e) {
         m_error = e.message;
     }

@@ -38,6 +38,7 @@ struct Options {
 };
 struct Frame {
     qint64 offset = 0, originalOffset = 0, durationUs = 0;
+    double sourceTime = 0;
 };
 struct Clip {
     std::shared_ptr<QTemporaryDir> directory;
@@ -51,7 +52,7 @@ struct Clip {
 using Cancel = std::shared_ptr<std::atomic_bool>;
 using Progress = std::function<void(QString, double)>;
 Media probe(const Tools &, const QString &, const Cancel &);
-QImage thumbnail(const Tools &, const Media &, double, const Cancel &);
+QImage thumbnail(const Tools &, const Media &, double, const Cancel &, bool fullResolution = false);
 double adjacentTime(const Tools &, const Media &, double, int, const Cancel &);
 Clip convert(const Tools &, const Media &, const Options &, const Cancel &, const Progress &);
 QImage frameImage(const Clip &, int, bool original = false);

@@ -11,7 +11,7 @@ PAPNG의 기본 연결 대상은 **Godot 뷰어**입니다. PNG/APNG는 뷰어�
 Ubuntu x86_64용 `.deb` 한 개로 설치합니다. 현재 빌드 기준은 **Ubuntu 26.04**입니다. 이전 Ubuntu 버전 지원을 주장하지 않으며, 다른 Ubuntu 버전을 지원하려면 해당 버전에서 앱과 패키지를 함께 다시 빌드해야 합니다. 패키지에는 빌드 환경의 외부 라이브러리 의존성과 최소 버전이 기록됩니다. 각 엔진을 실행할 수 있는 OpenGL/Vulkan 그래픽 드라이버가 필요합니다.
 
 ```sh
-sudo apt install ./papng-suite_0.1.0_ubuntu-26.04_amd64.deb
+sudo apt install ./papng-suite_0.2.0_ubuntu-26.04_amd64.deb
 ```
 
 - 앱 본체는 `/opt/papng-suite/`, 실행 명령은 `/usr/bin/papng-viewer`, `papng-editor`, `papng-unity-viewer`, `papng-unreal-viewer`, `papng-converter`입니다.
@@ -44,7 +44,7 @@ python3 packaging/build.py ubuntu
 
 ## Windows
 
-Windows x64용 NSIS 설치 파일 `PAPNG-Suite-0.1.0-windows-x64-setup.exe`를 제작합니다. 현재 저장소에는 **제작 설정**이 제공됩니다. 다섯 앱의 Windows 실행 파일을 먼저 빌드해야 하며, 현재 Linux 환경에서 Windows 전체 설치 파일을 완성하거나 실제 Windows 설치를 검증한 것은 아닙니다.
+Windows x64용 NSIS 설치 파일 `PAPNG-Suite-0.2.0-windows-x64-setup.exe`를 제작합니다. 현재 저장소에는 **제작 설정**이 제공됩니다. 다섯 앱의 Windows 실행 파일을 먼저 빌드해야 하며, 현재 Linux 환경에서 Windows 전체 설치 파일을 완성하거나 실제 Windows 설치를 검증한 것은 아닙니다.
 
 - 사용자별 `%LOCALAPPDATA%\Programs\PAPNG Suite`에 설치하므로 관리자 권한을 요구하지 않습니다.
 - 시작 메뉴의 **PAPNG** 폴더에 각 앱, 기본 앱 설정, 제거 메뉴가 생깁니다. Windows의 설치된 앱 목록에서도 제거할 수 있습니다.
@@ -76,7 +76,7 @@ python packaging/build.py windows --vc-runtime-dir "$env:VCToolsRedistDir\x64\Mi
 
 ## Android
 
-`PAPNG-Suite-0.1.0-android-debug.zip`에는 `papng-viewer.apk`, `papng-editor.apk`, 검증 정보와 선택적인 USB 설치 도구가 들어갑니다. APK를 기기에 옮겨 각각 열고 Android 설치 화면에서 설치합니다. 두 앱 모두 런처 아이콘과 이미지 열기·공유 연결을 포함합니다.
+`PAPNG-Suite-0.2.0-android-debug.zip`에는 `papng-viewer.apk`, `papng-editor.apk`, 검증 정보와 선택적인 USB 설치 도구가 들어갑니다. APK를 기기에 옮겨 각각 열고 Android 설치 화면에서 설치합니다. 두 앱 모두 런처 아이콘과 이미지 열기·공유 연결을 포함합니다.
 
 Android는 일반 앱이 다른 앱을 조용히 설치하거나 기본 앱을 강제로 선택하는 것을 허용하지 않습니다. `.papng` 파일을 열 때 **PAPNG Viewer → 항상**을 선택하면 Godot 뷰어로 연결됩니다. 파일 관리자가 매번 선택하도록 강제하거나 파일을 일반 바이너리로 보고하는 경우, 선택 방식은 해당 파일 관리자를 따릅니다.
 

@@ -1,6 +1,8 @@
 #pragma once
 #include "pipeline.h"
 #include <QFutureWatcher>
+#include <QCache>
+#include <QColor>
 #include <QMutex>
 #include <QObject>
 #include <QQuickImageProvider>
@@ -23,6 +25,7 @@ class Controller final : public QObject {
     Q_PROPERTY(QVariantMap settings READ settings NOTIFY changed)
     Q_PROPERTY(QVariantMap result READ result NOTIFY changed)
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
+    Q_PROPERTY(bool comparisonBusy READ comparisonBusy NOTIFY changed)
     Q_PROPERTY(bool ready READ ready NOTIFY changed)
     Q_PROPERTY(QString status READ status NOTIFY changed)
     Q_PROPERTY(QString error READ error NOTIFY changed)
@@ -42,6 +45,7 @@ class Controller final : public QObject {
     QVariantMap settings() const { return m_settings; }
     QVariantMap result() const { return m_clip.map(); }
     bool busy() const { return m_busy; }
+    bool comparisonBusy() const { return m_comparisonBusy; }
     bool ready() const { return !m_clip.frames.empty(); }
     QString status() const { return m_status; }
     QString error() const { return m_error; }
@@ -58,6 +62,7 @@ class Controller final : public QObject {
     Q_INVOKABLE void change(const QString &, const QVariant &);
     Q_INVOKABLE void crop(int x, int y, int width, int height);
     Q_INVOKABLE void seek(double);
+    Q_INVOKABLE QColor sourceColor(int x, int y) const;
     Q_INVOKABLE void step(int);
     Q_INVOKABLE void generate();
     Q_INVOKABLE void selectFrame(int);
@@ -82,6 +87,14 @@ class Controller final : public QObject {
     void start(Work, std::function<void(Job)>);
     void invalidate();
     void setSource(const QImage &, double);
+    void requestOriginal();
+    void publishComparison(const QImage &);
+    QImage m_sourceImage;
+    QCache<int, QImage> m_originalCache{128 * 1024};
+    QFutureWatcher<Job> m_originalWatcher;
+    pc::Cancel m_originalCancel = std::make_shared<std::atomic_bool>(false);
+    bool m_comparisonBusy = false, m_fetchPending = false;
+    int m_generation = 0, m_fetchGeneration = 0, m_fetchIndex = 0;
     Images *m_images;
     pc::Tools m_tools;
     pc::Media m_media;

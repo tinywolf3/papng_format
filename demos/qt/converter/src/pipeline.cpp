@@ -96,8 +96,10 @@ QByteArray run(const QString &executable, const QStringList &args, const Cancel 
     return result;
 }
 QStringList gifOptions(const Media &m) {
+    // Keep zero-delay duration estimates consistent with GIF packet timestamps (100 ms).
+    // Explicit nonzero delays, including 10 ms, remain unchanged.
     return m.format.contains("gif")
-               ? QStringList{"-ignore_loop", "1", "-min_delay", "1", "-default_delay", "1"}
+               ? QStringList{"-ignore_loop", "1", "-min_delay", "1", "-default_delay", "10"}
                : QStringList{};
 }
 QStringList decoderOptions(const Media &m) {
@@ -272,7 +274,7 @@ QVariantMap Clip::map() const {
 }
 Options Options::defaults(const Media &m) {
     Options o;
-    o.end = std::min(3.0, m.duration);
+    o.end = std::min(m.format.contains("gif") ? 60.0 : 3.0, m.duration);
     o.crop = {0, 0, m.width, m.height};
     o.width = std::min(128, m.width);
     o.height = std::max(1, qRound(double(o.width) * m.height / m.width));
@@ -373,6 +375,26 @@ Media probe(const Tools &t, const QString &input, const Cancel &cancel) {
     m.duration = s["duration"].toString().toDouble();
     if (m.duration <= 0)
         m.duration = root["format"].toObject()["duration"].toString().toDouble();
+    if (m.format.contains("gif")) {
+        // GIF header duration estimates can omit frames without a control extension.
+        // Use the same packet timeline as decoding, including zero-delay fallback.
+        const auto packets = run(t.ffprobe,
+            QStringList{"-v", "error", "-protocol_whitelist", "file,pipe"} + gifOptions(m) +
+            QStringList{"-select_streams", "v:0", "-show_entries", "packet=pts_time,duration_time",
+                        "-of", "csv=p=0", m.path}, cancel, 15000);
+        double end = m.startTime;
+        for (const auto &line : packets.split('\n')) {
+            const auto fields = line.split(',');
+            if (fields.size() != 2) continue;
+            bool validTime = false, validDelay = false;
+            const double time = fields[0].toDouble(&validTime);
+            const double delay = fields[1].toDouble(&validDelay);
+            require(validTime && validDelay && std::isfinite(time) && std::isfinite(delay) && delay > 0,
+                    "GIF 프레임 시간을 읽지 못했습니다.");
+            end = std::max(end, time + delay);
+        }
+        m.duration = end - m.startTime;
+    }
     auto fps = s["avg_frame_rate"].toString().split('/');
     if (fps.size() == 2 && fps[1].toDouble() > 0)
         m.fps = fps[0].toDouble() / fps[1].toDouble();
@@ -392,7 +414,7 @@ Media probe(const Tools &t, const QString &input, const Cancel &cancel) {
     require(std::isfinite(m.duration) && m.duration > 0, "재생 시간을 확인할 수 없는 영상입니다.");
     return m;
 }
-QImage thumbnail(const Tools &t, const Media &m, double time, const Cancel &c) {
+QImage thumbnail(const Tools &t, const Media &m, double time, const Cancel &c, bool fullResolution) {
     double anchor = 0;
     for (double stamp : nearby(t, m, time, c))
         if (stamp <= time + 0.000001)
@@ -411,8 +433,8 @@ QImage thumbnail(const Tools &t, const Media &m, double time, const Cancel &c) {
                             "-frames:v",
                             "1",
                             "-vf",
-                            "scale='min(1024,iw)':'min(1024,ih)':force_original_aspect_ratio=decrease:flags="
-                            "neighbor,setsar=1",
+                            fullResolution ? "setsar=1" :
+                            "scale='min(1024,iw)':'min(1024,ih)':force_original_aspect_ratio=decrease:flags=neighbor,setsar=1",
                             "-threads",
                             "1",
                             "-f",
@@ -422,7 +444,11 @@ QImage thumbnail(const Tools &t, const Media &m, double time, const Cancel &c) {
                             "-pix_fmt",
                             "rgba",
                             "pipe:1"};
-    auto bytes = run(t.ffmpeg, args, c, 15000);
+    QByteArray bytes;
+    run(t.ffmpeg, args, c, 15000, [&](QByteArray part) {
+        require(bytes.size() + part.size() <= 64 * MiB, "원본 프레임이 미리보기 한도를 초과했습니다.");
+        bytes += part;
+    });
     QImage image;
     require(image.loadFromData(bytes, "PNG"), "미리보기 프레임을 읽지 못했습니다.");
     return image;
@@ -617,7 +643,7 @@ Clip convert(const Tools &t, const Media &m, const Options &o, const Cancel &can
         else {
             require(clip.frames.size() < 600 && (qint64(clip.frames.size()) + 1) * frameBytes <= 64 * MiB,
                     "결과가 600프레임 또는 RGBA 64 MiB를 초과합니다. 구간·출력 크기·FPS를 줄여 주세요.");
-            clip.frames.push_back({output.pos(), sample.source * frameBytes, sample.duration});
+            clip.frames.push_back({output.pos(), sample.source * frameBytes, sample.duration, times[sample.source]});
             require(output.write(bytes) == bytes.size(), "변환 프레임 저장 실패");
             last = bytes;
         }

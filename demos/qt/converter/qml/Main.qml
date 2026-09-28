@@ -25,10 +25,20 @@ ApplicationWindow {
     property bool playing: false
     property int completedLoops: 0
     property bool lockAspect: true
+    property int sizeDivisor: 1
+    property bool divisorActive: false
+    property string sizingSource: ""
+    function divideSize(value) {
+        sizeDivisor = Math.round(value)
+        divisorActive = true
+        set("width", Math.max(1, Math.round(controller.settings.cropWidth / sizeDivisor)))
+        set("height", Math.max(1, Math.round(controller.settings.cropHeight / sizeDivisor)))
+    }
     readonly property var titles: ["파일 선택", "사용 구간", "크기와 자르기", "프레임과 시간", "색상과 투명도", "확인과 저장"]
     readonly property var notes: ["작은 움직임을 픽셀 애니메이션으로", "남기고 싶은 움직임만 선택하세요", "최종 픽셀 크기에서 모양을 다듬으세요", "원래 속도를 유지하거나 프레임 수를 줄이세요", "원하는 경우에만 색상을 정리하세요", "결과를 재생하고 편집기로 가져가세요"]
     function set(key, value) { playing = false; controller.change(key, value) }
     function sizeWidth(value) {
+        divisorActive = false
         if (!lockAspect) { set("width", value); return }
         let ratio = controller.settings.cropHeight / controller.settings.cropWidth
         let w = Math.min(value, 512 / ratio)
@@ -36,6 +46,7 @@ ApplicationWindow {
         set("height", Math.max(1, Math.min(512, Math.round(w * ratio))))
     }
     function sizeHeight(value) {
+        divisorActive = false
         if (!lockAspect) { set("height", value); return }
         let ratio = controller.settings.cropWidth / controller.settings.cropHeight
         let h = Math.min(value, 512 / ratio)
@@ -44,7 +55,10 @@ ApplicationWindow {
     }
     function applyCrop(x, y, w, h) {
         controller.crop(x, y, w, h)
-        if (lockAspect) sizeWidth(controller.settings.width)
+        if (lockAspect) {
+            if (divisorActive) divideSize(sizeDivisor)
+            else sizeWidth(controller.settings.width)
+        }
     }
     FileDialog {
         id: openDialog
@@ -60,24 +74,59 @@ ApplicationWindow {
         nameFilters: ["PAPNG 이미지 (*.papng)"]
         onAccepted: controller.exportFile(selectedFile)
     }
+    Dialog {
+        id: pickDialog
+        objectName: "sourceColorDialog"
+        title: "배경색 선택 · 원본에서 픽셀 클릭"
+        anchors.centerIn: parent
+        width: Math.min(window.width - 60, 900); height: Math.min(window.height - 60, 650)
+        modal: true
+        standardButtons: Dialog.Close
+        contentItem: ColumnLayout {
+            Preview {
+                objectName: "colorPickPreview"
+                Layout.fillWidth: true; Layout.fillHeight: true
+                source: controller.sourceUrl
+                sourceWidth: controller.media.width || 1; sourceHeight: controller.media.height || 1
+                pickEnabled: !controller.busy
+                caption: "원본 · " + controller.sourceTime.toFixed(3) + "초"
+                onPixelPicked: (x, y) => {
+                    window.set("keyColor", controller.sourceColor(x, y).toString())
+                    pickDialog.close()
+                }
+            }
+            RowLayout {
+                enabled: !controller.busy
+                Button { text: "◀ 이전 프레임"; onClicked: controller.step(-1) }
+                Button { text: "다음 프레임 ▶"; onClicked: controller.step(1) }
+                Button { text: "색상 대화상자…"; onClicked: { pickDialog.close(); keyDialog.selectedColor = controller.settings.keyColor; keyDialog.open() } }
+            }
+        }
+    }
     ColorDialog { id: keyDialog; title: "투명하게 바꿀 배경색"; onAccepted: window.set("keyColor", selectedColor.toString()) }
     Connections {
         target: controller
         function onGenerated() { page = 5; completedLoops = 0; playing = true }
-        function onChanged() { if (!controller.ready) playing = false }
+        function onChanged() {
+            if (!controller.ready || controller.error.length > 0) playing = false
+            if ((controller.media.path || "") !== sizingSource) {
+                sizingSource = controller.media.path || ""
+                divisorActive = false; sizeDivisor = 1
+            }
+        }
     }
     Timer {
         id: playTimer
         interval: controller.frameDelay
         repeat: false
-        running: playing && controller.ready && !controller.busy
+        running: playing && controller.ready && !controller.busy && !controller.comparisonBusy
         onTriggered: {
             if (controller.frameIndex + 1 >= controller.frameCount) {
                 completedLoops++
                 if (controller.settings.plays > 0 && completedLoops >= controller.settings.plays) { playing = false; return }
                 controller.selectFrame(0)
             } else controller.selectFrame(controller.frameIndex + 1)
-            if (playing) restart()
+            if (playing && !controller.comparisonBusy) restart()
         }
     }
     Shortcut { sequence: "Ctrl+O"; enabled: !controller.busy; onActivated: openDialog.open() }
@@ -203,7 +252,20 @@ ApplicationWindow {
                             NumberField { Layout.fillWidth: true; label: "너비"; minimum: 1; maximum: 512; value: controller.settings.width || 128; onEdited: number => window.sizeWidth(number) }
                             NumberField { Layout.fillWidth: true; label: "높이"; minimum: 1; maximum: 512; value: controller.settings.height || 128; onEdited: number => window.sizeHeight(number) }
                         }
-                        CheckBox { text: "비율 유지"; checked: lockAspect; onClicked: lockAspect = checked }
+                        CheckBox { objectName: "lockAspect"; text: "비율 유지"; checked: lockAspect; onClicked: { lockAspect = checked; if (checked && divisorActive) window.divideSize(sizeDivisor) } }
+                        Label { visible: lockAspect; text: divisorActive ? sizeDivisor + "x · 자르기 영역 ÷ " + sizeDivisor : "배수로 나누기 · 직접 입력 중" }
+                        Slider {
+                            objectName: "sizeDivisor"
+                            Layout.fillWidth: true; visible: lockAspect; enabled: lockAspect
+                            from: 1; to: 16; stepSize: 1; snapMode: Slider.SnapAlways
+                            value: window.sizeDivisor
+                            onMoved: window.divideSize(value)
+                        }
+                        Label {
+                            visible: controller.settings.width > 512 || controller.settings.height > 512
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#ffb5a7"
+                            text: "출력이 512픽셀을 넘습니다. 배수를 높이거나 자르기 영역을 줄이세요."
+                        }
                         ComboBox { Layout.fillWidth: true; model: ["또렷하게 · 최근접", "부드럽게 · Lanczos"]; currentIndex: controller.settings.nearest === false ? 1 : 0; onActivated: window.set("nearest", currentIndex === 0) }
                         Label { Layout.fillWidth: true; text: "가로·세로 최대 512픽셀\n최종 결과는 다음 단계에서 비교합니다."; wrapMode: Text.WordWrap; color: "#9daec3"; font.pixelSize: 12 }
                         Item { Layout.fillHeight: true }
@@ -247,7 +309,7 @@ ApplicationWindow {
                     RowLayout {
                         enabled: controller.settings.key === true
                         Rectangle { width: 34; height: 34; radius: 5; color: controller.settings.keyColor || "#00ff00"; border.color: "#b2c4d9" }
-                        Button { text: "배경색 선택…"; onClicked: { keyDialog.selectedColor = controller.settings.keyColor; keyDialog.open() } }
+                        Button { objectName: "pickBackground"; text: "배경색 선택…"; onClicked: pickDialog.open() }
                         NumberField { Layout.preferredWidth: 140; label: "색상 허용 오차"; maximum: 255; value: controller.settings.keyTolerance || 0; onEdited: number => window.set("keyTolerance", number) }
                     }
                     Label { Layout.fillWidth: true; text: "단색 배경의 영상에 적합합니다. 같은 색의 피사체도 투명해질 수 있으므로 결과를 꼭 확인하세요."; wrapMode: Text.WordWrap; color: "#9daec3" }
@@ -259,7 +321,7 @@ ApplicationWindow {
                     spacing: 12
                     RowLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true; spacing: 14
-                        Preview { Layout.fillWidth: true; Layout.fillHeight: true; source: controller.originalUrl; caption: "크기만 조정한 원본" }
+                        Preview { Layout.fillWidth: true; Layout.fillHeight: true; source: controller.originalUrl; caption: controller.comparisonBusy ? "원본 프레임 읽는 중…" : "원본 · " + controller.media.width + " × " + controller.media.height }
                         Preview { Layout.fillWidth: true; Layout.fillHeight: true; source: controller.resultUrl; caption: "변환 결과" }
                     }
                     RowLayout {
