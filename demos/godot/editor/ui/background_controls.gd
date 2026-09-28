@@ -14,16 +14,26 @@ var opacity_slider: HSlider
 var fit_button: Button
 var original_button: Button
 var remove_button: Button
+var flow_options: VBoxContainer
+var speed: SpinBox
+var direction: OptionButton
+var load_button: Button
 var syncing=false
 
 func _ready():
 	add_theme_constant_override("separation",5)
-	mode=UI.options(self,"바탕",["체크무늬","단색"])
+	mode=UI.options(self,"바탕",["고정 체크무늬","흐르는 체크무늬","단색","이미지"])
 	mode.item_selected.connect(func(value): host.canvas.background_mode=value; sync(); host.canvas.queue_redraw())
+	flow_options=VBoxContainer.new(); self.add_child(flow_options)
+	speed=UI.spin(flow_options,"흐름 속도",0.25,4.0,0.25); speed.suffix="×"
+	speed.value_changed.connect(func(value): if not syncing: host.canvas.checker_speed=value)
+	direction=OptionButton.new(); flow_options.add_child(direction)
+	for text in ["↘ 우하단","↓ 아래","↙ 좌하단","← 왼쪽","↖ 좌상단","↑ 위","↗ 우상단","→ 오른쪽"]: direction.add_item(text)
+	direction.item_selected.connect(func(value): host.canvas.checker_direction=value)
 	tint=ColorPickerButton.new(); tint.edit_alpha=false; tint.custom_minimum_size.y=36; add_child(tint)
 	tint.tooltip_text="단색 배경 색상"; tint.color_changed.connect(func(value): host.canvas.background_color=Color(value,1.0); host.canvas.queue_redraw())
 	var files=HFlowContainer.new(); add_child(files)
-	UI.button(files,"이미지…",func(): host.choose_background(),"참고할 외부 이미지를 배경에 불러옵니다.")
+	load_button=UI.button(files,"이미지…",func(): host.choose_background(),"참고할 외부 이미지를 배경에 불러옵니다.")
 	remove_button=UI.button(files,"제거",func(): host.canvas.clear_reference(); sync())
 	image_info=UI.label(self,"참고 이미지 없음"); image_info.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	show_image=UI.check(self,"이미지 표시")
@@ -46,15 +56,19 @@ func sync():
 	if mode==null: return
 	syncing=true
 	var canvas=host.canvas; var has_image=canvas.reference_texture!=null
-	mode.select(canvas.background_mode); tint.color=canvas.background_color; tint.visible=canvas.background_mode==1
+	mode.select(canvas.background_mode); tint.color=canvas.background_color; tint.visible=canvas.background_mode==2
+	var image_mode=host.canvas.background_mode==3
+	flow_options.visible=host.canvas.background_mode==1
+	speed.set_value_no_signal(host.canvas.checker_speed); direction.select(host.canvas.checker_direction)
 	image_info.text="%d × %d px" % [canvas.reference_texture.get_width(),canvas.reference_texture.get_height()] if has_image else "참고 이미지 없음"
-	show_image.set_pressed_no_signal(canvas.reference_visible and has_image); show_image.disabled=not has_image
+	show_image.set_pressed_no_signal(canvas.reference_visible and has_image); show_image.disabled=not has_image or not image_mode
 	x_value.set_value_no_signal(canvas.reference_position.x); y_value.set_value_no_signal(canvas.reference_position.y)
 	scale_value.set_value_no_signal(canvas.reference_scale*100)
 	opacity_value.set_value_no_signal(canvas.reference_opacity*100); opacity_slider.set_value_no_signal(canvas.reference_opacity*100)
-	for spin in [x_value,y_value,scale_value,opacity_value]: spin.editable=has_image
-	for button in [fit_button,original_button,remove_button]: button.disabled=not has_image
-	opacity_slider.editable=has_image; syncing=false
+	for spin in [x_value,y_value,scale_value,opacity_value]: spin.editable=has_image and image_mode
+	for button in [fit_button,original_button,remove_button]: button.disabled=not has_image or not image_mode
+	load_button.disabled=not image_mode
+	opacity_slider.editable=has_image and image_mode; syncing=false
 func apply_transform():
 	if syncing: return
 	host.canvas.reference_position=Vector2(x_value.value,y_value.value)

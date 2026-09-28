@@ -1,7 +1,8 @@
 extends RefCounted
 ## Small original line icons shared by desktop and touch toolbars.
-const SHORTCUTS={"pencil":"B","erase":"E","fill":"G","pick":"I","select":"R","line":"L","rect":"U","mask":"M","socket":"K"}
+const SHORTCUTS={"pencil":"B","erase":"E","alpha":"A","fill":"G","pick":"I","select":"R","line":"L","rect":"U","mask":"M","socket":"K"}
 const PATHS={
+	"alpha":'<path d="M12 3C10 7 5 11 5 15a7 7 0 0 0 14 0c0-4-5-8-7-12Z"/><path d="M12 10v11M12 14h5M12 17h6"/>',
 	"pencil":'<path d="m4 20 1-6L16 3l5 5-11 11-6 1m9-14 5 5M5 14l5 5"/>',
 	"erase":'<path d="m3 14 10-10 8 8-8 8H9l-6-6m5-5 8 8M12 20h10"/>',
 	"fill":'<path d="m4 11 7-7 8 8-7 7-8-8m4-9 7 7M3 12h16M20 14q-5 6 0 6t0-6"/>',

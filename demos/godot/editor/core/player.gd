@@ -205,7 +205,8 @@ func draw_frame(index: int):
 	if f.dispose == 2:
 		state.previous = state.pixels.duplicate(); state.previous_marks = state.marks.duplicate()
 	if mask.is_empty() and f.blend == 0 and f.width == doc.width and f.height == doc.height:
-		state.pixels = source
+		# Composition must own its pixels; source may be an editable frame or cached decode.
+		state.pixels = source.duplicate()
 		state.marks = PackedByteArray(); state.marks.resize(source.size())
 		state.frame = index
 		return

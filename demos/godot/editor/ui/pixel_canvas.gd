@@ -9,6 +9,15 @@ var model
 var tool = "pencil"
 var color = Color("ebbb71")
 var brush = 1
+var alpha_value = 255
+var line_anchor = Vector2i.ZERO
+var line_anchor_valid = false
+var anchor_model
+var anchor_frame = -1
+var checker_phase = Vector2.ZERO
+var checker_speed=1.0
+var checker_direction=0
+const CHECKER_DIRECTIONS=[Vector2(1,1),Vector2(0,1),Vector2(-1,1),Vector2(-1,0),Vector2(-1,-1),Vector2(0,-1),Vector2(1,-1),Vector2(1,0)]
 var mask_index = 0
 var zoom = 12
 var pan = Vector2.ZERO
@@ -43,7 +52,7 @@ var hue_offsets: Dictionary = {}
 var accessory_texture: ImageTexture
 var accessory_pivot=Vector2.ZERO
 # Editor-only background. Coordinates are in document pixels, never viewport pixels.
-var background_mode=0 # 0 checkerboard, 1 solid color
+var background_mode=1 # 0 fixed, 1 flowing, 2 solid, 3 image
 var background_color=Color("25303b")
 var reference_texture: ImageTexture
 var reference_position=Vector2.ZERO
@@ -67,16 +76,17 @@ func fit_reference():
 func draw_background(canvas_rect: Rect2):
 	var visible=canvas_rect.intersection(Rect2(Vector2.ZERO,size))
 	if not visible.has_area(): return
-	if background_mode==1:
+	if background_mode>=2:
 		draw_rect(visible,Color(background_color,1.0))
 	else:
 		draw_rect(visible,Color("25303b"))
 		# The checkerboard follows the same document origin and zoom as pixels.
 		var cell=8.0*zoom
-		for y in range(floori((visible.position.y-origin.y)/cell),ceili((visible.end.y-origin.y)/cell)):
-			for x in range(floori((visible.position.x-origin.x)/cell),ceili((visible.end.x-origin.x)/cell)):
-				if (x+y)%2: draw_rect(Rect2(origin+Vector2(x,y)*cell,Vector2.ONE*cell).intersection(visible),Color("35434e"))
-	if reference_texture==null or not reference_visible or reference_opacity<=0: return
+		var checker_origin=origin+(checker_phase if background_mode==1 else Vector2.ZERO)*zoom
+		for y in range(floori((visible.position.y-checker_origin.y)/cell),ceili((visible.end.y-checker_origin.y)/cell)):
+			for x in range(floori((visible.position.x-checker_origin.x)/cell),ceili((visible.end.x-checker_origin.x)/cell)):
+				if (x+y)%2: draw_rect(Rect2(checker_origin+Vector2(x,y)*cell,Vector2.ONE*cell).intersection(visible),Color("35434e"))
+	if background_mode!=3 or reference_texture==null or not reference_visible or reference_opacity<=0: return
 	var scale=reference_scale*zoom
 	var image_rect=Rect2(origin+reference_position*zoom,reference_texture.get_size()*scale)
 	var clipped=image_rect.intersection(visible)
@@ -89,11 +99,18 @@ func _ready():
 	clip_contents=true; mouse_filter=Control.MOUSE_FILTER_STOP; focus_mode=Control.FOCUS_ALL
 	texture_filter=CanvasItem.TEXTURE_FILTER_NEAREST
 	resized.connect(queue_redraw)
+	mouse_exited.connect(func(): has_cursor=false; queue_redraw())
+func _process(delta):
+	if model!=null and background_mode==1 and is_visible_in_tree():
+		checker_phase=(checker_phase+CHECKER_DIRECTIONS[checker_direction]*delta*0.25*checker_speed).posmod(16.0)
+		queue_redraw()
 func update_origin(): origin=((size-Vector2(model.width,model.height)*zoom)/2+pan).floor()
 func pixel(position: Vector2) -> Vector2i:
 	update_origin(); return Vector2i(((position-origin)/zoom).floor())
 func refresh():
 	if model==null: return
+	if anchor_model!=model or anchor_frame!=model.selected:
+		line_anchor_valid=false; anchor_model=model; anchor_frame=model.selected
 	var f=model.frames[model.selected]
 	var source=f.rgba.duplicate()
 	if not hue_offsets.is_empty():
@@ -130,19 +147,26 @@ func set_zoom(value: int, at: Vector2 = Vector2(-1,-1)):
 func stop_gesture():
 	if dragging and tool not in ["select","line","rect"] and floating.is_empty(): model.commit()
 	dragging=false; panning=false
-func stamp(point: Vector2i, erase: bool = false):
+func stamp(point: Vector2i, erase: bool = false, width: int = 0):
 	var rgba=PackedByteArray() if tool=="mask" else PackedByteArray([0,0,0,0]) if tool=="erase" else PackedByteArray([color.r8,color.g8,color.b8,color.a8])
 	var mask=-1 if tool=="erase" or (tool=="mask" and erase) else mask_index if tool=="mask" else -2
 	if mask>=model.mask_count: message.emit("마스크 탭에서 사용할 마스크를 먼저 추가하세요."); return
-	for y in brush:
-		for x in brush:
-			var p=point+Vector2i(x-brush/2,y-brush/2)
-			if not selection.has_area() or selection.has_point(p): model.set_pixel(p,rgba,mask)
-func stroke(a: Vector2i, b: Vector2i, erase: bool = false):
+	var diameter=brush if width<=0 else width
+	for y in diameter:
+		for x in diameter:
+			var p=point+Vector2i(x-diameter/2,y-diameter/2)
+			if selection.has_area() and not selection.has_point(p): continue
+			if tool=="alpha":
+				var original=model.pixel_at(p)
+				if original.is_empty(): continue
+				var pixel_color=original.rgba; pixel_color[3]=clampi(alpha_value,0,255)
+				model.set_pixel(p,pixel_color,-2)
+			else: model.set_pixel(p,rgba,mask)
+func stroke(a: Vector2i, b: Vector2i, erase: bool = false, width: int = 0):
 	var dx=absi(b.x-a.x); var dy=-absi(b.y-a.y); var sx=1 if a.x<b.x else -1; var sy=1 if a.y<b.y else -1
 	var error=dx+dy; var point=a
 	while true:
-		stamp(point,erase)
+		stamp(point,erase,width)
 		if point==b: break
 		var twice=2*error
 		if twice>=dy: error+=dy; point.x+=sx
@@ -174,6 +198,9 @@ func apply_paste():
 	model.begin("붙여넣기"); model.paste(floating,floating_position,not replace_paste); model.commit()
 	floating={}; floating_texture=null; queue_redraw()
 func cancel_paste(): floating={}; floating_texture=null; queue_redraw()
+func _input(event):
+	# Redraw even when Shift changes while the cursor is stationary on a solid backdrop.
+	if event is InputEventKey and (event.keycode==KEY_SHIFT or event.physical_keycode==KEY_SHIFT): queue_redraw()
 func _gui_input(event):
 	if model==null: return
 	if event is InputEventMouseButton:
@@ -186,6 +213,11 @@ func _gui_input(event):
 		if playing: message.emit("재생을 멈춘 뒤 편집하세요."); return
 		var point=pixel(event.position)
 		if event.pressed:
+			if floating.is_empty() and tool in ["pencil","erase","alpha","line"] and model.frame_rect().has_point(point):
+				if event.shift_pressed and line_anchor_valid and anchor_model==model and anchor_frame==model.selected:
+					model.begin("1픽셀 연결선"); stroke(line_anchor,point,false,1); model.commit()
+					line_anchor=point; dragging=false; accept_event(); return
+				line_anchor=point; line_anchor_valid=true; anchor_model=model; anchor_frame=model.selected
 			start=point; previous=point; dragging=true
 			if not floating.is_empty(): drag_start=point-floating_position; return
 			if tool=="select": selection=Rect2i(point,Vector2i.ONE); selection_changed.emit()
@@ -218,7 +250,7 @@ func _gui_input(event):
 		if dragging and not playing:
 			if not floating.is_empty(): floating_position=point-drag_start
 			elif tool=="select": selection=Rect2i(start.min(point),(start-point).abs()+Vector2i.ONE).intersection(Rect2i(0,0,model.width,model.height)); selection_changed.emit()
-			elif tool in ["pencil","erase","mask"]: stroke(previous,point,event.shift_pressed); model.changed.emit()
+			elif tool in ["pencil","erase","alpha","mask"]: stroke(previous,point,event.shift_pressed); model.changed.emit()
 		previous=point; queue_redraw()
 func label_at(point: Vector2, text: String, tint: Color):
 	var font=get_theme_default_font()
@@ -268,6 +300,11 @@ func _draw():
 			var p=poses[i]; var at=origin+Vector2(p[0],p[1])*zoom; var tint=Color("f5a6d6") if i==selected_socket else Color("b8b5f4")
 			draw_circle(at,5,tint,false,2); draw_line(at,at+Vector2(20,0).rotated(deg_to_rad(p[2])),tint,2)
 			label_at(at+Vector2(8,-8),doc.sockets.names[i],tint)
+	if has_cursor and Input.is_key_pressed(KEY_SHIFT) and not playing and not dragging and floating.is_empty() and tool in ["pencil","erase","alpha","line"] and line_anchor_valid and anchor_model==model and anchor_frame==model.selected and model.frame_rect().has_point(cursor):
+		var from=origin+(Vector2(line_anchor)+Vector2(0.5,0.5))*zoom
+		var to=origin+(Vector2(cursor)+Vector2(0.5,0.5))*zoom
+		draw_line(from,to,Color(0,0,0,0.85),3)
+		draw_line(from,to,Color(0.65,0.97,0.89,0.75),1)
 	if show_cross and has_cursor:
 		var at=origin+(Vector2(cursor)+Vector2(0.5,0.5))*zoom
 		draw_line(Vector2(0,at.y),Vector2(size.x,at.y),Color(0,0,0,0.85),3)

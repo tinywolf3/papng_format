@@ -19,6 +19,9 @@ var notice: Label
 var worker: Thread
 var result: Dictionary = {}
 var started = 0
+var flow_options: VBoxContainer
+var speed: SpinBox
+var direction: OptionButton
 var syncing = false
 
 func _ready():
@@ -26,8 +29,14 @@ func _ready():
 	wrap_controls = false
 	var scroll = ScrollContainer.new(); scroll.custom_minimum_size = Vector2(290,250); scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED; add_child(scroll)
 	var box = VBoxContainer.new(); box.size_flags_horizontal = Control.SIZE_EXPAND_FILL; box.add_theme_constant_override("separation",6); scroll.add_child(box)
-	background_choice = OptionButton.new(); background_choice.add_item("체크무늬"); background_choice.add_item("단색"); background_choice.custom_minimum_size.y = 44; box.add_child(background_choice)
+	background_choice = OptionButton.new(); background_choice.add_item("고정 체크무늬"); background_choice.add_item("흐르는 체크무늬"); background_choice.add_item("단색"); background_choice.add_item("이미지"); background_choice.custom_minimum_size.y = 44; box.add_child(background_choice)
 	background_choice.item_selected.connect(func(index): view.background_mode = index; sync(); view.queue_redraw())
+	flow_options=VBoxContainer.new(); box.add_child(flow_options)
+	speed=spin(flow_options,"흐름 속도",0.25,4.0,0.25); speed.suffix="×"
+	speed.value_changed.connect(func(value): if not syncing: view.checker_speed=value)
+	direction=OptionButton.new(); flow_options.add_child(direction)
+	for text in ["↘ 우하단","↓ 아래","↙ 좌하단","← 왼쪽","↖ 좌상단","↑ 위","↗ 우상단","→ 오른쪽"]: direction.add_item(text)
+	direction.item_selected.connect(func(value): view.checker_direction=value)
 	tint = ColorPickerButton.new(); tint.edit_alpha = false; tint.custom_minimum_size.y = 44; box.add_child(tint)
 	tint.color_changed.connect(func(color): view.background_color = Color(color,1.0); view.queue_redraw())
 	var files = HFlowContainer.new(); box.add_child(files)
@@ -68,16 +77,19 @@ func sync():
 	if background_choice == null: return
 	syncing = true
 	var has_image = view.reference_texture != null
-	background_choice.select(view.background_mode); tint.color = view.background_color; tint.visible = view.background_mode == 1
+	background_choice.select(view.background_mode); tint.color = view.background_color; tint.visible = view.background_mode == 2
+	var image_mode=view.background_mode==3
+	flow_options.visible=view.background_mode==1
+	speed.set_value_no_signal(view.checker_speed); direction.select(view.checker_direction)
 	image_info.text = "%d × %d px" % [view.reference_size.x,view.reference_size.y] if has_image else "참고 이미지 없음"
-	load_button.disabled = worker != null or view.info.is_empty()
-	show_image.set_pressed_no_signal(view.reference_visible and has_image); show_image.disabled = not has_image
+	load_button.disabled = not image_mode or worker != null or view.info.is_empty()
+	show_image.set_pressed_no_signal(view.reference_visible and has_image); show_image.disabled = not has_image or not image_mode
 	x_value.set_value_no_signal(view.reference_position.x); y_value.set_value_no_signal(view.reference_position.y); scale_value.set_value_no_signal(view.reference_scale*100)
 	opacity_value.set_value_no_signal(view.reference_opacity*100); opacity_slider.set_value_no_signal(view.reference_opacity*100)
-	for field in [x_value,y_value,scale_value,opacity_value]: field.editable = has_image
-	for item in [fit_button,original_button,remove_button]: item.disabled = not has_image or worker != null
+	for field in [x_value,y_value,scale_value,opacity_value]: field.editable = has_image and image_mode
+	for item in [fit_button,original_button,remove_button]: item.disabled = not has_image or not image_mode or worker != null
 	fit_button.disabled = fit_button.disabled or view.info.is_empty()
-	opacity_slider.editable = has_image
+	opacity_slider.editable = has_image and image_mode
 	if worker == null: notice.text = "PAPNG·PNG·APNG를 먼저 열면 이미지 배경을 추가할 수 있습니다." if view.info.is_empty() else ""
 	syncing = false
 func apply_transform():

@@ -57,11 +57,11 @@ func _input(event):
 			if tool in ["fill","pick","socket"]: first_position=local
 			else:
 				if not stroke_started: mouse_button(first_position,true); stroke_started=true
-				var motion=InputEventMouseMotion.new(); motion.position=local; motion.relative=local-last_position; motion.shift_pressed=clear_mask
+				var motion=InputEventMouseMotion.new(); motion.position=local; motion.relative=local-last_position; motion.shift_pressed=clear_mask and tool=="mask"
 				super._gui_input(motion)
 		update_cursor(local); last_position=local; queue_redraw(); get_viewport().set_input_as_handled()
 func mouse_button(position: Vector2, pressed: bool):
-	var event=InputEventMouseButton.new(); event.button_index=MOUSE_BUTTON_LEFT; event.position=position; event.pressed=pressed; event.shift_pressed=clear_mask
+	var event=InputEventMouseButton.new(); event.button_index=MOUSE_BUTTON_LEFT; event.position=position; event.pressed=pressed; event.shift_pressed=clear_mask and tool=="mask"
 	super._gui_input(event)
 func update_cursor(position: Vector2):
 	cursor=pixel(position); has_cursor=Rect2i(0,0,model.width,model.height).has_point(cursor)

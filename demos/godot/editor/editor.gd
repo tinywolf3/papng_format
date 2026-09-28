@@ -67,7 +67,7 @@ var refs: Dictionary = {}
 var reference_revision=-1
 var refreshing=false
 var preview_frame=-1
-var tool_names={"pencil":"연필  B","erase":"지우개  E","fill":"채우기  G","pick":"스포이트  I","select":"선택  R","line":"직선  L","rect":"사각형  U","mask":"마스크  M","socket":"소켓  K"}
+var tool_names={"pencil":"연필  B","erase":"지우개  E","alpha":"알파펜  A","fill":"채우기  G","pick":"스포이트  I","select":"선택  R","line":"직선  L","rect":"사각형  U","mask":"마스크  M","socket":"소켓  K"}
 
 func _ready():
 	get_tree().auto_accept_quit=false
@@ -105,6 +105,7 @@ func build_ui():
 	UI.button(toolbar,"+",func(): canvas.set_zoom(canvas.zoom+1)); UI.button(toolbar,"맞춤",func(): canvas.fit(),"F · 최소 1:1"); UI.button(toolbar,"1:1",func(): canvas.set_zoom(1),"1")
 	for setting in [["격자","show_grid",true],["십자선","show_cross",true],["마스크 강조","show_mask",false],["힌트","show_hints",true],["소켓","show_sockets",true],["어니언","onion",false]]:
 		var check=UI.check(toolbar,setting[0],setting[2]); var property=setting[1]
+		if property=="onion": check.tooltip_text="이전 프레임의 합성 결과를 옅게 표시합니다. 저장 픽셀에는 영향을 주지 않습니다."
 		check.toggled.connect(func(on): canvas.set(property,on); canvas.refresh())
 	UI.button(toolbar,"배경…",show_background_settings)
 	var workspace=HSplitContainer.new(); workspace.size_flags_vertical=Control.SIZE_EXPAND_FILL; workspace.split_offset=200; outer.add_child(workspace)
@@ -119,13 +120,14 @@ func build_ui():
 	color_button=ColorPickerButton.new(); color_button.color=Color("ebbb71"); color_button.custom_minimum_size.y=40; toolbox.add_child(color_button)
 	color_button.color_changed.connect(func(value): canvas.color=value)
 	var brush=UI.spin(toolbox,"크기",1,64); brush.value=1; brush.value_changed.connect(func(value): canvas.brush=int(value))
+	var alpha=UI.spin(toolbox,"알파펜 값",0,255); alpha.value=255; alpha.tooltip_text="알파펜으로 적용할 값 · 0 투명 / 255 불투명 · RGB와 마스크 유지"; alpha.value_changed.connect(func(value): canvas.alpha_value=int(value))
 	var actions=HFlowContainer.new(); actions.name="SelectionActions"; toolbox.add_child(actions)
 	Icons.button(actions,"clear","선택 해제",func(): canvas.selection=Rect2i(); canvas.queue_redraw(),"Esc")
 	Icons.button(actions,"cut","잘라내기",func(): copy(true),"Ctrl+X")
 	Icons.button(actions,"copy","복사",func(): copy(false),"Ctrl+C")
 	Icons.button(actions,"paste","붙여넣기",paste,"Ctrl+V")
 	Icons.button(actions,"apply","배치 확정",func(): stop_playback(); canvas.apply_paste(),"Enter")
-	UI.check(toolbox,"투명 픽셀도 교체").toggled.connect(func(value): canvas.replace_paste=value)
+	var replace=UI.check(toolbox,"투명 픽셀도 교체"); replace.tooltip_text="붙여넣기: 켜면 투명 픽셀까지 그대로 교체합니다. 끄면 투명 픽셀을 건너뛰고 반투명 픽셀을 합성합니다."; replace.toggled.connect(func(value): canvas.replace_paste=value)
 	var center_right=HSplitContainer.new(); center_right.size_flags_horizontal=Control.SIZE_EXPAND_FILL; center_right.split_offset=800; workspace.add_child(center_right)
 	var center=VBoxContainer.new(); center.custom_minimum_size.x=320; center.size_flags_horizontal=Control.SIZE_EXPAND_FILL; center_right.add_child(center)
 	frame_info=UI.label(center,""); frame_info.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -137,11 +139,11 @@ func build_ui():
 	background_controls=BackgroundControls.new(); background_controls.host=self; toolbox.add_child(background_controls)
 	background_toggle.toggled.connect(func(on): background_controls.visible=on)
 	var right=VBoxContainer.new(); right.custom_minimum_size.x=310; center_right.add_child(right)
-	inspector=Inspector.new(); inspector.host=self; inspector.size_flags_vertical=Control.SIZE_EXPAND_FILL; inspector.custom_minimum_size.y=245; right.add_child(inspector)
-	var mini_box=panel(right); UI.label(mini_box,"1:1 미니맵 · 합성 결과 / 클릭으로 이동")
-	var scroll=ScrollContainer.new(); scroll.custom_minimum_size.y=120; mini_box.add_child(scroll)
-	mini=Mini.new(); scroll.add_child(mini); mini.centered.connect(func(point): canvas.pan=(Vector2(model.width,model.height)/2-point)*canvas.zoom; canvas.queue_redraw())
+	var mini_box=panel(right); UI.label(mini_box,"미니맵 · 합성 결과 / 클릭으로 이동")
+	mini=Mini.new(); mini.fit_to_panel=true; mini.custom_minimum_size.y=120; mini_box.add_child(mini); mini.centered.connect(func(point): canvas.pan=(Vector2(model.width,model.height)/2-point)*canvas.zoom; canvas.queue_redraw())
 	pixel_info=UI.label(right,"커서: —\nRGBA: —\nHSV: —\n마스크: —"); pixel_info.custom_minimum_size.y=90; pixel_info.add_theme_font_size_override("font_size",13)
+	pixel_info.text_overrun_behavior=TextServer.OVERRUN_TRIM_ELLIPSIS
+	inspector=Inspector.new(); inspector.host=self; inspector.size_flags_vertical=Control.SIZE_EXPAND_FILL; inspector.custom_minimum_size.y=245; right.add_child(inspector)
 	var frames_panel=panel(outer); var frame_bar=UI.row(frames_panel)
 	play_button=UI.button(frame_bar,"▶ 재생",func(): stop_playback() if canvas.playing else start_playback(),"Ctrl+Space")
 	UI.button(frame_bar,"◀",func(): select_frame(model.selected-1)); frame_spin=UI.spin(frame_bar,"프레임",0,0); frame_spin.value_changed.connect(func(value): if not refreshing: select_frame(int(value)))
@@ -404,7 +406,7 @@ func apply_raw():
 			model.distributions=defs; model.touch())
 	if not action_error.is_empty(): raw_dialog.popup_centered_ratio(0.8)
 func show_help():
-	notice_dialog.dialog_text="PAPNG Editor · 픽셀과 애니메이션\n\nB 연필 · E 지우개 · G 채우기 · I 스포이트 · R 선택\nL 직선 · U 사각형 · M 마스크 (Shift로 해제) · K 소켓\n마우스 휠: 정수 배율 · 가운데 버튼 / Space+드래그: 이동\nF 화면 맞춤 · 1 실제 크기 · ← / → 프레임 이동\nCtrl+Space 재생 · Ctrl+Z / Y 실행 취소 / 다시 실행\nCtrl+C / X / V 앱 클립보드 · Ctrl+Shift+V 시스템 이미지 가져오기\nEnter 붙이기 확정 · Esc 취소 · Delete 선택 영역 지우기\n\n가운데 화면은 원본 프레임을 편집합니다. 미니맵과 재생은 합성 결과입니다.\n부분 프레임 바깥을 편집하려면 프레임 탭에서 원본 영역을 넓히세요.\n이미지 복제는 픽셀·마스크·시간을 복사하며 확장 이동 제어는 복사하지 않습니다.\n색상각과 부속 연결은 미리보기 설정이며 저장되는 원본색은 변하지 않습니다."
+	notice_dialog.dialog_text="PAPNG Editor · 픽셀과 애니메이션\n\nB 연필 · E 지우개 · A 알파펜 · G 채우기 · I 스포이트 · R 선택\nL 직선 · U 사각형 · M 마스크 (Shift로 해제) · K 소켓\nShift+클릭: 마지막 그리기 클릭에서 1픽셀 연결선\n마우스 휠: 정수 배율 · 가운데 버튼 / Space+드래그: 이동\nF 화면 맞춤 · 1 실제 크기 · ← / → 프레임 이동\nCtrl+Space 재생 · Ctrl+Z / Y 실행 취소 / 다시 실행\nCtrl+C / X / V 앱 클립보드 · Ctrl+Shift+V 시스템 이미지 가져오기\nEnter 붙이기 확정 · Esc 취소 · Delete 선택 영역 지우기\n\n가운데 화면은 원본 프레임을 편집합니다. 미니맵과 재생은 합성 결과입니다.\n부분 프레임 바깥을 편집하려면 프레임 탭에서 원본 영역을 넓히세요.\n이미지 복제는 픽셀·마스크·시간을 복사하며 확장 이동 제어는 복사하지 않습니다.\n색상각과 부속 연결은 미리보기 설정이며 저장되는 원본색은 변하지 않습니다."
 	notice_dialog.popup_centered()
 func notify(text: String):
 	if status!=null: status.text=text; status.tooltip_text=text
@@ -439,6 +441,7 @@ func _unhandled_key_input(event):
 		match key:
 			KEY_B: select_tool("pencil")
 			KEY_E: select_tool("erase")
+			KEY_A: select_tool("alpha")
 			KEY_G: select_tool("fill")
 			KEY_I: select_tool("pick")
 			KEY_R: select_tool("select")

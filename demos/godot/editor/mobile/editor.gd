@@ -119,6 +119,7 @@ func build_sheet():
 	inspector=Inspector.new(); inspector.host=self; inspector.tabs_visible=false; inspector.size_flags_vertical=Control.SIZE_EXPAND_FILL; extensions.add_child(inspector)
 	extension_choice.item_selected.connect(func(index): inspector.current_tab=index)
 	var view=sheet_scroll("view")
+	var alpha=UI.spin(view,"알파펜 값",0,255); alpha.value=255; alpha.tooltip_text="RGB와 마스크를 유지하고 알파만 적용합니다."; alpha.value_changed.connect(func(value): canvas.alpha_value=int(value))
 	zoom_spin=UI.spin(view,"정수 배율",1,128); zoom_spin.suffix="×"; zoom_spin.value_changed.connect(func(value): canvas.set_zoom(int(value)))
 	for setting in [["격자","show_grid",true],["픽셀 중앙 십자선","show_cross",true],["마스크 영역 강조","show_mask",false],["힌트 / 피벗","show_hints",true],["소켓 위치 / 이름","show_sockets",true],["이전 합성 프레임","onion",false]]:
 		var property=setting[1]; UI.check(view,setting[0],setting[2]).toggled.connect(func(on): canvas.set(property,on); canvas.refresh())

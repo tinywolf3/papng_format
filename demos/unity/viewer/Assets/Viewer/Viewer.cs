@@ -85,7 +85,15 @@ public sealed class Viewer : MonoBehaviour {
             error = e.Message;
         }
     }
+    Vector2 checkerPhase;
+    float checkerSpeed = 1;
+    int checkerDirection;
+    static readonly Vector2[] CheckerDirections = { new(1,1),new(0,1),new(-1,1),new(-1,0),new(-1,-1),new(0,-1),new(1,-1),new(1,0) };
     void Update() {
+        if (bgMode == 1) {
+            checkerPhase += CheckerDirections[checkerDirection] * (Time.unscaledDeltaTime * 3f * checkerSpeed);
+            checkerPhase = new Vector2(Mathf.Repeat(checkerPhase.x,24),Mathf.Repeat(checkerPhase.y,24));
+        }
         double now = Time.realtimeSinceStartupAsDouble;
         double dt = Math.Min(.25, now - lastTick);
         lastTick = now;
@@ -418,12 +426,20 @@ public sealed class Viewer : MonoBehaviour {
         return GUILayout.HorizontalSlider(v, min, max);
     }
     void Background() {
-        bgMode = GUILayout.SelectionGrid(bgMode, new[] { "Checker", "Solid" }, 2);
-        bgColor.r = Slider("Red", bgColor.r, 0, 1);
-        bgColor.g = Slider("Green", bgColor.g, 0, 1);
-        bgColor.b = Slider("Blue", bgColor.b, 0, 1);
-        if (Button("Load PNG / JPEG background…"))
-            Browser(2);
+        bgMode = GUILayout.SelectionGrid(bgMode, new[] { "Fixed checker", "Flowing checker", "Solid", "Image" }, 1);
+        if (bgMode == 1) {
+            checkerSpeed = Slider("Flow speed (x)", checkerSpeed, .25f, 4);
+            checkerDirection = GUILayout.SelectionGrid(checkerDirection, new[] { "Down-right", "Down", "Down-left", "Left", "Up-left", "Up", "Up-right", "Right" }, 2);
+        }
+        if (bgMode == 2) {
+            bgColor.r = Slider("Red", bgColor.r, 0, 1);
+            bgColor.g = Slider("Green", bgColor.g, 0, 1);
+            bgColor.b = Slider("Blue", bgColor.b, 0, 1);
+        }
+        GUI.enabled = bgMode == 3;
+        if (Button("Load PNG / JPEG background…")) Browser(2);
+        GUI.enabled = true;
+        if (bgMode != 3) return;
         if (background == null)
             return;
         showBackground = GUILayout.Toggle(showBackground, "Show reference image");
@@ -482,8 +498,10 @@ public sealed class Viewer : MonoBehaviour {
         GUI.BeginGroup(viewport);
         Rect local = new Rect(0, 0, viewport.width, viewport.height);
         var old = GUI.color;
-        if (bgMode == 0)
-            GUI.DrawTextureWithTexCoords(local, checker, new Rect(0, 0, local.width / 24, local.height / 24));
+        if (bgMode < 2) {
+            Vector2 phase = bgMode == 1 ? checkerPhase / 24f : Vector2.zero;
+            GUI.DrawTextureWithTexCoords(local, checker, new Rect(-phase.x, phase.y, local.width / 24, local.height / 24));
+        }
         else {
             GUI.color = bgColor;
             GUI.DrawTexture(local, Texture2D.whiteTexture);
@@ -494,7 +512,7 @@ public sealed class Viewer : MonoBehaviour {
                                      (local.height - doc.State.Height * zoom) / 2) +
                          pan;
             Rect r = new Rect(origin, new Vector2(doc.State.Width, doc.State.Height) * zoom);
-            if (background != null && showBackground)
+            if (bgMode == 3 && background != null && showBackground)
                 Image(new Rect(origin + new Vector2(bgX, bgY) * zoom,
                                new Vector2(background.width, background.height) * bgScale *zoom),
                       background, bgAlpha, false);

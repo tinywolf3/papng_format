@@ -5,6 +5,12 @@ Rectangle {
     id: root
     property alias source: picture.source
     property string caption: ""
+    property int backgroundMode: 1
+    property real backgroundSpeed: 1
+    property int backgroundDirection: 0
+    property color backgroundColor: "#242e3b"
+    property url backgroundImage: ""
+    readonly property var directions: [[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1],[1,0]]
     property bool cropEnabled: false
     property bool pickEnabled: false
     signal pixelPicked(int x, int y)
@@ -12,12 +18,20 @@ Rectangle {
     property int sourceHeight: 1
     property rect cropRect: Qt.rect(0, 0, sourceWidth, sourceHeight)
     signal cropped(int x, int y, int w, int h)
-    color: "#12171f"
+    color: root.backgroundMode >= 2 ? root.backgroundColor : "#12171f"
     border.color: "#303b4c"
     radius: 12
     clip: true
     Canvas {
-        anchors.fill: parent
+        property real phase: 0
+        visible: root.backgroundMode < 2
+        x: root.backgroundMode === 1 ? root.directions[root.backgroundDirection][0] * phase - 24 : 0
+        y: root.backgroundMode === 1 ? root.directions[root.backgroundDirection][1] * phase - 24 : 0
+        width: parent.width + 48; height: parent.height + 48
+        NumberAnimation on phase {
+            from: 0; to: 24; duration: 8000 / root.backgroundSpeed; loops: Animation.Infinite
+            running: root.backgroundMode === 1 && root.visible
+        }
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
         onPaint: {
@@ -28,6 +42,19 @@ Rectangle {
                     c.fillRect(x, y, 12, 12)
                 }
         }
+    }
+    Image {
+        id: backgroundPicture
+        anchors.fill: parent
+        visible: root.backgroundMode === 3
+        source: root.backgroundImage
+        fillMode: Image.PreserveAspectFit; smooth: false
+        asynchronous: true
+    }
+    Label {
+        anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
+        visible: root.backgroundMode === 3 && backgroundPicture.status === Image.Error
+        text: "배경 이미지를 읽을 수 없습니다."; color: "#ffb2a8"
     }
     Image {
         id: picture

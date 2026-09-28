@@ -14,7 +14,11 @@ var auto_fit = true
 var pan = Vector2.ZERO
 var dragging = false
 var origin = Vector2.ZERO
-var background_mode = 0
+var background_mode = 0 # 0 fixed, 1 flowing, 2 solid, 3 image
+var checker_phase = Vector2.ZERO
+var checker_speed=1.0
+var checker_direction=0
+const CHECKER_DIRECTIONS=[Vector2(1,1),Vector2(0,1),Vector2(-1,1),Vector2(-1,0),Vector2(-1,-1),Vector2(0,-1),Vector2(1,-1),Vector2(1,0)]
 var background_color = Color("141b25")
 var reference_texture: ImageTexture
 var reference_size = Vector2.ZERO
@@ -35,7 +39,7 @@ func fit_reference():
 	reference_scale = minf(dimensions.x/reference_size.x,dimensions.y/reference_size.y)
 	reference_position = (dimensions-reference_size*reference_scale)/2; queue_redraw()
 func draw_reference():
-	if reference_texture == null or not reference_visible or reference_opacity <= 0: return
+	if background_mode != 3 or reference_texture == null or not reference_visible or reference_opacity <= 0: return
 	var rect = Rect2(origin+reference_position*zoom,reference_size*reference_scale*zoom)
 	var clipped = rect.intersection(Rect2(Vector2.ZERO,size))
 	if not clipped.has_area(): return
@@ -47,6 +51,10 @@ func _ready():
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	resized.connect(queue_redraw)
+
+func _process(delta):
+	if background_mode==1 and is_visible_in_tree():
+		checker_phase=(checker_phase+CHECKER_DIRECTIONS[checker_direction]*delta*3.0*checker_speed).posmod(40.0); queue_redraw()
 
 func clear():
 	texture = null; child_texture = null; mark_texture = null
@@ -82,11 +90,12 @@ func _gui_input(event):
 	elif event is InputEventMagnifyGesture: zoom_by(event.factor,event.position)
 
 func _draw():
-	draw_rect(Rect2(Vector2.ZERO,size),Color(background_color,1.0) if background_mode == 1 else Color("141b25"))
-	if background_mode == 0:
-		for y in range(0,int(size.y),20):
-			for x in range(0,int(size.x),20):
-				if (x/20+y/20)%2: draw_rect(Rect2(x,y,20,20),Color("192331"))
+	draw_rect(Rect2(Vector2.ZERO,size),Color(background_color,1.0) if background_mode >= 2 else Color("141b25"))
+	if background_mode < 2:
+		var offset=checker_phase if background_mode==1 else Vector2.ZERO
+		for y in range(-2,ceili(size.y/20.0)+1):
+			for x in range(-2,ceili(size.x/20.0)+1):
+				if (x+y)%2: draw_rect(Rect2(Vector2(x,y)*20+offset,Vector2(20,20)),Color("192331"))
 	var font = get_theme_default_font()
 	if info.is_empty():
 		draw_string(font,Vector2(28,size.y/2-14),"PAPNG · PNG · APNG",HORIZONTAL_ALIGNMENT_LEFT,-1,24,Color("c8dfdf"))

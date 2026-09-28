@@ -64,8 +64,12 @@ class SViewer : public SCompoundWidget {
     FVector2D Pan = FVector2D::ZeroVector;
     float Zoom = 8, BgX = 0, BgY = 0, BgScale = 1, BgAlpha = 1;
     FLinearColor BgColor = FLinearColor(.13f, .14f, .17f);
-    bool Mark = false, Hints = false, Sockets = false, Checker = true, ShowBackground = true, Fitted = false,
+    bool Mark = false, Hints = false, Sockets = false, ShowBackground = true, Fitted = false,
          EditChild = false;
+    int BackgroundMode = 0, CheckerDirection = 0;
+    float CheckerSpeed = 1;
+    FVector2D CheckerPhase = FVector2D::ZeroVector;
+    const TArray<FVector2D> CheckerDirections = {{1,1},{0,1},{-1,1},{-1,0},{-1,-1},{0,-1},{1,-1},{1,0}};
     int SocketIndex = 0, MaskIndex = 0, RequestedMaskIndex = 0, ClipIndex = -1, FileTarget = 0;
     FSlateColorBrush White{FLinearColor::White};
     TSharedRef<SWidget> Button(const FString &Text, TFunction<void()> Fn) {
@@ -196,6 +200,12 @@ class SViewer : public SCompoundWidget {
     }
     virtual void Tick(const FGeometry &Geometry, double Time, float Delta) override {
         SCompoundWidget::Tick(Geometry, Time, Delta);
+        if (BackgroundMode == 1) {
+            CheckerPhase += CheckerDirections[CheckerDirection] * (Delta * 3.f * CheckerSpeed);
+            CheckerPhase.X = FMath::Fmod(CheckerPhase.X + 32,32);
+            CheckerPhase.Y = FMath::Fmod(CheckerPhase.Y + 32,32);
+            Canvas->Invalidate(EInvalidateWidgetReason::Paint);
+        }
         if (Doc) {
             Doc->Update(FMath::Min(.25f, Delta));
             if (Doc->State.Width && !Fitted) {
@@ -476,15 +486,25 @@ class SViewer : public SCompoundWidget {
     }
     void BackgroundPanel() {
         BeginPanel(TEXT("Background"));
-        Panel->AddSlot()
-            .AutoHeight()[Button(Checker ? TEXT("Checker — use solid") : TEXT("Solid — use checker"), [this] {
-                Checker = !Checker;
-                BackgroundPanel();
+        const TArray<FString> Modes = {TEXT("Fixed checker"),TEXT("Flowing checker"),TEXT("Solid"),TEXT("Image")};
+        for (int I=0; I<Modes.Num(); ++I)
+            Panel->AddSlot().AutoHeight()[Button(Modes[I] + (BackgroundMode==I ? TEXT(" (selected)") : TEXT("")), [this,I] {
+                BackgroundMode=I; BackgroundPanel(); Canvas->Invalidate(EInvalidateWidgetReason::Paint);
             })];
-        Number(TEXT("Red"), BgColor.R, 0, 1, [this](float V) { BgColor.R = V; });
-        Number(TEXT("Green"), BgColor.G, 0, 1, [this](float V) { BgColor.G = V; });
-        Number(TEXT("Blue"), BgColor.B, 0, 1, [this](float V) { BgColor.B = V; });
-        Panel->AddSlot().AutoHeight()[Button(TEXT("Load background image…"), [this] { Files(2); })];
+        if (BackgroundMode==1) {
+            Number(TEXT("Flow speed (x)"),CheckerSpeed,.25f,4,[this](float V){CheckerSpeed=V;});
+            const TArray<FString> Directions={TEXT("Down-right"),TEXT("Down"),TEXT("Down-left"),TEXT("Left"),TEXT("Up-left"),TEXT("Up"),TEXT("Up-right"),TEXT("Right")};
+            for (int I=0; I<Directions.Num(); ++I)
+                Panel->AddSlot().AutoHeight()[Button(Directions[I]+(CheckerDirection==I ? TEXT(" (selected)") : TEXT("")),[this,I]{CheckerDirection=I; BackgroundPanel();})];
+        }
+        if (BackgroundMode==2) {
+            Number(TEXT("Red"), BgColor.R, 0, 1, [this](float V) { BgColor.R = V; });
+            Number(TEXT("Green"), BgColor.G, 0, 1, [this](float V) { BgColor.G = V; });
+            Number(TEXT("Blue"), BgColor.B, 0, 1, [this](float V) { BgColor.B = V; });
+        }
+        auto LoadImage=Button(TEXT("Load background image…"), [this] { Files(2); });
+        LoadImage->SetEnabled(BackgroundMode==3); Panel->AddSlot().AutoHeight()[LoadImage];
+        if (BackgroundMode!=3) return;
         if (!BackgroundImage.IsValid())
             return;
         Panel->AddSlot()
@@ -546,13 +566,15 @@ class SViewer : public SCompoundWidget {
                                               FVector2f(Pivot), FSlateDrawElement::RelativeToElement,
                                               FLinearColor(1, 1, 1, Alpha));
         };
-        if (Checker) {
+        if (BackgroundMode < 2) {
             FSlateBrush Brush;
             Brush.SetResourceObject(CheckerTexture.Get());
             Brush.DrawAs = ESlateBrushDrawType::Image;
             Brush.Tiling = ESlateBrushTileType::Both;
             Brush.ImageSize = FVector2D(32,32);
-            FSlateDrawElement::MakeBox(Out, Layer++, G.ToPaintGeometry(), &Brush);
+            const FVector2D Offset = BackgroundMode==1 ? CheckerPhase - FVector2D(32,32) : FVector2D::ZeroVector;
+            FSlateDrawElement::MakeBox(Out, Layer++, G.ToPaintGeometry(
+                FVector2D(Size) + FVector2D(64,64), FSlateLayoutTransform(Offset)), &Brush);
         } else Box(FVector2D::ZeroVector, Size, BgColor);
         if (!Doc || !Doc->State.Width) {
             Text(FVector2D(24, 24), TEXT("Open a PAPNG, APNG or PNG image."));
@@ -561,7 +583,7 @@ class SViewer : public SCompoundWidget {
         auto &S = Doc->State;
         FVector2D Origin = (Size - FVector2D(S.Width, S.Height) * Zoom) / 2 + Pan,
                   Extent = FVector2D(S.Width, S.Height) * Zoom;
-        if (BackgroundImage.IsValid() && ShowBackground)
+        if (BackgroundMode==3 && BackgroundImage.IsValid() && ShowBackground)
             Image(BackgroundImage.Get(), Origin + FVector2D(BgX, BgY) * Zoom,
                   FVector2D(BackgroundImage->GetSizeX(), BackgroundImage->GetSizeY()) * BgScale * Zoom,
                   BgAlpha);

@@ -23,6 +23,11 @@ ApplicationWindow {
     font.pixelSize: 14
     property int page: 0
     property bool playing: false
+    property int backgroundMode: 1
+    property real backgroundSpeed: 1
+    property int backgroundDirection: 0
+    property color backgroundColor: "#242e3b"
+    property url backgroundImage: ""
     property int completedLoops: 0
     property bool lockAspect: true
     property int sizeDivisor: 1
@@ -60,6 +65,40 @@ ApplicationWindow {
             else sizeWidth(controller.settings.width)
         }
     }
+    ColorDialog { id: backgroundColorDialog; selectedColor: window.backgroundColor; onAccepted: window.backgroundColor = selectedColor }
+    FileDialog {
+        id: backgroundFileDialog
+        title: "배경 이미지 선택"
+        nameFilters: ["이미지 (*.png *.jpg *.jpeg *.webp *.bmp)"]
+        onAccepted: window.backgroundImage = selectedFile
+    }
+    Dialog {
+        id: backgroundSettings
+        title: "배경 설정"; modal: true; anchors.centerIn: parent
+        width: 360; standardButtons: Dialog.Close
+        contentItem: ColumnLayout {
+            ComboBox {
+                Layout.fillWidth: true
+                model: ["고정 체크무늬", "흐르는 체크무늬", "단색", "이미지"]
+                currentIndex: window.backgroundMode
+                onActivated: window.backgroundMode = currentIndex
+            }
+            ColumnLayout {
+                visible: window.backgroundMode === 1; Layout.fillWidth: true
+                Label { text: "흐름 속도 · " + window.backgroundSpeed.toFixed(2) + "×" }
+                Slider { objectName: "backgroundSpeed"; Layout.fillWidth: true; from: 0.25; to: 4; stepSize: 0.25; value: window.backgroundSpeed; onMoved: window.backgroundSpeed = value }
+                ComboBox {
+                    objectName: "backgroundDirection"; Layout.fillWidth: true
+                    model: ["↘ 우하단", "↓ 아래", "↙ 좌하단", "← 왼쪽", "↖ 좌상단", "↑ 위", "↗ 우상단", "→ 오른쪽"]
+                    currentIndex: window.backgroundDirection; onActivated: window.backgroundDirection = currentIndex
+                }
+            }
+            Button { text: "배경 색상…"; visible: window.backgroundMode === 2; onClicked: backgroundColorDialog.open() }
+            Button { objectName: "chooseBackgroundImage"; text: "배경 이미지 선택…"; enabled: window.backgroundMode === 3; onClicked: backgroundFileDialog.open() }
+            Button { text: "이미지 제거"; enabled: window.backgroundMode === 3 && window.backgroundImage.toString() !== ""; onClicked: window.backgroundImage = "" }
+            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "미리보기 전용이며 변환 결과에는 포함되지 않습니다." }
+        }
+    }
     FileDialog {
         id: openDialog
         title: "변환할 영상 또는 GIF 선택"
@@ -84,6 +123,11 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         contentItem: ColumnLayout {
             Preview {
+                backgroundMode: window.backgroundMode
+                backgroundSpeed: window.backgroundSpeed
+                backgroundDirection: window.backgroundDirection
+                backgroundColor: window.backgroundColor
+                backgroundImage: window.backgroundImage
                 objectName: "colorPickPreview"
                 Layout.fillWidth: true; Layout.fillHeight: true
                 source: controller.sourceUrl
@@ -160,6 +204,14 @@ ApplicationWindow {
                 }
                 Item { Layout.fillHeight: true }
                 Label { text: "MP4 · WebM · GIF\n↓\nPAPNG 1.1"; color: "#9daec3"; lineHeight: 1.4 }
+                ComboBox {
+                    objectName: "backgroundMode"
+                    Layout.fillWidth: true
+                    model: ["고정 체크무늬", "흐르는 체크무늬", "단색", "이미지"]
+                    currentIndex: window.backgroundMode
+                    onActivated: window.backgroundMode = currentIndex
+                }
+                Button { text: "배경 설정…"; Layout.fillWidth: true; onClicked: backgroundSettings.open() }
                 Label { text: "Linux · Windows"; font.pixelSize: 11; color: "#72859e" }
             }
         }
@@ -191,6 +243,11 @@ ApplicationWindow {
                     ColumnLayout {
                         anchors.fill: parent; spacing: 18
                         Preview {
+                            backgroundMode: window.backgroundMode
+                            backgroundSpeed: window.backgroundSpeed
+                            backgroundDirection: window.backgroundDirection
+                            backgroundColor: window.backgroundColor
+                            backgroundImage: window.backgroundImage
                             Layout.fillWidth: true; Layout.fillHeight: true
                             source: controller.sourceUrl
                             caption: controller.media.width > 0 ? "원본" : ""
@@ -209,7 +266,14 @@ ApplicationWindow {
                 // 2. Trim
                 ColumnLayout {
                     spacing: 12
-                    Preview { Layout.fillWidth: true; Layout.fillHeight: true; source: controller.sourceUrl; caption: "원본 · " + controller.sourceTime.toFixed(3) + "초" }
+                    Preview {
+                        backgroundMode: window.backgroundMode
+                        backgroundSpeed: window.backgroundSpeed
+                        backgroundDirection: window.backgroundDirection
+                        backgroundColor: window.backgroundColor
+                        backgroundImage: window.backgroundImage
+                        Layout.fillWidth: true; Layout.fillHeight: true; source: controller.sourceUrl; caption: "원본 · " + controller.sourceTime.toFixed(3) + "초"
+                    }
                     Slider { Layout.fillWidth: true; from: 0; to: controller.media.duration || 1; value: controller.sourceTime; onPressedChanged: if (!pressed) controller.seek(value) }
                     RowLayout {
                         Button { text: "◀ 이전 프레임"; onClicked: controller.step(-1) }
@@ -228,6 +292,11 @@ ApplicationWindow {
                 RowLayout {
                     spacing: 18
                     Preview {
+                        backgroundMode: window.backgroundMode
+                        backgroundSpeed: window.backgroundSpeed
+                        backgroundDirection: window.backgroundDirection
+                        backgroundColor: window.backgroundColor
+                        backgroundImage: window.backgroundImage
                         Layout.fillWidth: true; Layout.fillHeight: true; source: controller.sourceUrl
                         caption: "드래그하여 자르기"; cropEnabled: true
                         sourceWidth: controller.media.width || 1; sourceHeight: controller.media.height || 1
@@ -321,8 +390,20 @@ ApplicationWindow {
                     spacing: 12
                     RowLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true; spacing: 14
-                        Preview { Layout.fillWidth: true; Layout.fillHeight: true; source: controller.originalUrl; caption: controller.comparisonBusy ? "원본 프레임 읽는 중…" : "원본 · " + controller.media.width + " × " + controller.media.height }
-                        Preview { Layout.fillWidth: true; Layout.fillHeight: true; source: controller.resultUrl; caption: "변환 결과" }
+                        Preview {
+                            backgroundMode: window.backgroundMode
+                            backgroundSpeed: window.backgroundSpeed
+                            backgroundDirection: window.backgroundDirection
+                            backgroundColor: window.backgroundColor
+                            backgroundImage: window.backgroundImage
+                            Layout.fillWidth: true; Layout.fillHeight: true; source: controller.originalUrl; caption: controller.comparisonBusy ? "원본 프레임 읽는 중…" : "원본 · " + controller.media.width + " × " + controller.media.height }
+                        Preview {
+                            backgroundMode: window.backgroundMode
+                            backgroundSpeed: window.backgroundSpeed
+                            backgroundDirection: window.backgroundDirection
+                            backgroundColor: window.backgroundColor
+                            backgroundImage: window.backgroundImage
+                            Layout.fillWidth: true; Layout.fillHeight: true; source: controller.resultUrl; caption: "변환 결과" }
                     }
                     RowLayout {
                         Button { objectName: "playResult"; text: playing ? "Ⅱ 일시 정지" : "▶ 재생"; onClicked: { completedLoops = 0; playing = !playing } }

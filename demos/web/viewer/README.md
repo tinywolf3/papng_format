@@ -146,3 +146,5 @@ npm run build
 저장소 Settings → Pages → Build and deployment → Source는 **GitHub Actions**로 설정합니다. 배포 설정은 [pages.yml](../../../.github/workflows/pages.yml)에 있으며 Node.js 24에서 `npm ci`와 `npm run build`를 실행합니다. `builds/web/viewer/`만 Pages에 업로드하므로 빌드 결과를 커밋할 필요가 없습니다. 샘플·Worker·웹 자산은 이 디렉터리에 함께 포함됩니다.
 
 원본 명세는 Markdown으로 유지합니다. 선택한 로컬 파일은 브라우저에서 처리하며 업로드하지 않습니다.
+
+배경은 **고정 체크무늬(기본) → 흐르는 체크무늬 → 단색 → 이미지** 순서로 선택합니다. 흐름 속도(0.25–4배)·8방향과 단색 색상을 조절할 수 있으며 이미지 파일 선택은 이미지 모드에서만 활성화됩니다. 배경은 복원된 픽셀 데이터와 별도로 표시됩니다.

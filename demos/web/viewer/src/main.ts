@@ -14,7 +14,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <aside class="library"><div class="section-label">EXPLORE <span id="sample-count">07</span></div><h1>작은 픽셀,<br><em>다양한 가능성.</em></h1><p class="intro">샘플을 선택하고 색과 움직임을<br>직접 바꿔 보세요.</p><nav id="samples" aria-label="PAPNG 샘플"></nav><div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="PAPNG 파일 놓기 또는 선택"><span aria-hidden="true">↥</span><b>나의 픽셀아트 열기</b><small>.papng 파일을 이곳에 놓으세요</small></div><p class="privacy">파일은 서버로 업로드되지 않습니다.</p></aside>
     <section class="stage-column" aria-label="픽셀아트 미리보기"><div class="preview-heading"><div><div class="section-label">CANVAS</div><h2 id="title">팔레트 정원</h2><p id="subtitle">파일을 불러오는 중입니다.</p></div><span id="dimensions" class="pill">— × —</span></div>
       <div class="canvas-stage" id="canvas-stage"><div class="stage-corner top-left"></div><div class="stage-corner bottom-right"></div><div id="canvas-wrap"><canvas id="canvas" width="24" height="24" aria-label="복원된 PAPNG 픽셀아트"></canvas><svg id="overlay" aria-hidden="true"></svg></div><div class="stage-label"><span id="file-name">PAPNG RESOURCE</span><span id="zoom-label">10×</span></div><div id="loading" class="loading" hidden>픽셀 복원 중…</div></div>
-      <div class="view-options"><label>배율 <select id="zoom" aria-label="픽셀 배율"><option value="auto">자동</option><option value="4">4×</option><option value="8">8×</option><option value="12">12×</option><option value="16">16×</option></select></label><label class="check"><input type="checkbox" id="hints"> 바운딩 박스 · 피벗</label><button id="checker" class="subtle" aria-pressed="true">투명 배경 ▦</button></div>
+      <div class="view-options"><label>배율 <select id="zoom" aria-label="픽셀 배율"><option value="auto">자동</option><option value="4">4×</option><option value="8">8×</option><option value="12">12×</option><option value="16">16×</option></select></label><label class="check"><input type="checkbox" id="hints"> 바운딩 박스 · 피벗</label><label>배경 <select id="checker" aria-label="배경"><option value="fixed">고정 체크무늬</option><option value="flowing">흐르는 체크무늬</option><option value="solid">단색</option><option value="image">이미지</option></select></label></div>
+      <div class="background-options">
+        <span id="background-flow" hidden><label>속도 <input id="background-speed" type="range" min="0.25" max="4" step="0.25" value="1"><output id="background-speed-label">1×</output></label><label>방향 <select id="background-direction"><option value="0">↘ 우하단</option><option value="1">↓ 아래</option><option value="2">↙ 좌하단</option><option value="3">← 왼쪽</option><option value="4">↖ 좌상단</option><option value="5">↑ 위</option><option value="6">↗ 우상단</option><option value="7">→ 오른쪽</option></select></label></span>
+        <label id="background-color-label" hidden>배경색 <input id="background-color" type="color" value="#1b231e"></label>
+        <label class="button">이미지 선택 <input id="background-file" type="file" accept="image/*" disabled></label><button id="background-remove" disabled>이미지 제거</button><span id="background-name"></span>
+      </div>
       <section id="socket-panel" class="socket-panel" hidden aria-label="소켓 연결 예제"><div class="section-label">SOCKETS · ATTACHMENTS</div><h3>소켓에 부속 연결</h3><div class="socket-options"><label>연결 지점 <select id="socket-select" aria-label="연결할 소켓"></select></label><label class="check"><input id="show-sockets" type="checkbox" checked> 소켓 표시</label><label class="check"><input id="show-attachment" type="checkbox" checked> 부속 표시</label></div><p id="socket-pose" class="socket-pose"></p><p id="attachment-state" class="technical"></p><p class="technical">소켓의 방향으로 회전하고 부속의 pivot을 맞춥니다. 부속은 자체 속도로 재생됩니다.</p></section>
       <section class="transport" aria-label="재생 제어"><div class="transport-top"><div class="transport-buttons"><button id="restart" class="icon-button" aria-label="처음부터">↺</button><button id="play" class="button accent" disabled>▶ 재생</button><button id="step" class="icon-button" aria-label="다음 방문">→</button></div><span id="play-state" class="play-state">준비 중</span><label class="clip-label">클립 <select id="clip" aria-label="애니메이션 클립"><option value="">전체 애니메이션</option></select></label></div><div class="timeline"><input id="seek" type="range" min="0" max="1" value="0" step="1" aria-label="프레임 이동"><output id="frame-label">000 / 000</output></div><div class="frame-facts"><span>지연 <b id="delay">—</b></span><span>제어 <b id="control">—</b></span><span>완료 <b id="loops">0</b></span></div></section>
       <section class="detail-panel"><div class="section-label">INSIDE THIS FILE</div><div id="features" class="feature-tags"></div><div class="cache-heading"><label for="budget">프레임 캐시 <select id="budget"><option value="0">사용 안 함</option><option value="4">4 MiB</option><option value="16">16 MiB</option><option value="32" selected>32 MiB</option><option value="64">64 MiB</option></select></label><span id="cache-summary">0 B / 32 MiB</span></div><div class="meter"><i id="cache-meter"></i></div><p id="cache-details" class="technical">점프 대상과 자주 찾는 프레임을 우선 보관합니다.</p><details><summary>분포와 프레임 제어 보기</summary><div id="records" class="records"></div></details><details id="metadata-panel" hidden><summary>JSON5 메타데이터 보기</summary><p id="metadata-note" class="technical"></p><pre id="metadata-source"></pre></details></section>
@@ -233,6 +238,43 @@ element('mask-next').onclick=()=>{if(info)maskPage=Math.min(Math.ceil(info.maskC
 element<HTMLInputElement>('mask-goto').onchange=e=>{const n=Number((e.target as HTMLInputElement).value);if(info&&Number.isInteger(n)&&n>=0&&n<info.maskCount){maskPage=Math.floor(n/16);renderPalette();}};
 element('socket-select').onchange=drawScene;element('show-attachment').onchange=drawScene;element('show-sockets').onchange=fit;
 element('zoom').onchange=fit;element('hints').onchange=fit;new ResizeObserver(fit).observe(element('canvas-stage'));
-element('checker').onclick=()=>{const stage=element('canvas-stage'),off=stage.classList.toggle('solid');element('checker').setAttribute('aria-pressed',String(!off));};
+const backgroundStage=element('canvas-stage');
+let backgroundUrl='',backgroundRequest=0;
+const backgroundDirections=[[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1],[1,0]];
+function updateBackground() {
+  const mode=element<HTMLSelectElement>('checker').value;
+  backgroundStage.classList.toggle('solid',mode==='solid'||mode==='image');
+  backgroundStage.classList.toggle('flowing',mode==='flowing');
+  backgroundStage.classList.toggle('image-background',mode==='image');
+  backgroundStage.style.backgroundImage=mode==='image'&&backgroundUrl ? `url("${backgroundUrl}")` : '';
+  backgroundStage.style.backgroundColor=element<HTMLInputElement>('background-color').value;
+  element('background-flow').hidden=mode!=='flowing';
+  element('background-color-label').hidden=mode!=='solid';
+  element<HTMLInputElement>('background-file').disabled=mode!=='image';
+  element<HTMLButtonElement>('background-remove').disabled=mode!=='image'||!backgroundUrl;
+  const speed=Number(element<HTMLInputElement>('background-speed').value);
+  const [dx,dy]=backgroundDirections[Number(element<HTMLSelectElement>('background-direction').value)]!;
+  backgroundStage.style.setProperty('--flow-duration',`${8/speed}s`);
+  backgroundStage.style.setProperty('--flow-x',`${dx!*24}px`);backgroundStage.style.setProperty('--flow-y',`${dy!*24}px`);
+  element('background-speed-label').textContent=`${speed}×`;
+}
+element('checker').onchange=updateBackground;
+for(const id of ['background-speed','background-direction','background-color'])element(id).oninput=updateBackground;
+element<HTMLInputElement>('background-file').onchange=async()=>{
+  const file=element<HTMLInputElement>('background-file').files?.[0];if(!file)return;
+  const request=++backgroundRequest,url=URL.createObjectURL(file),image=new Image();image.src=url;
+  try {
+    await image.decode();
+    if(request!==backgroundRequest){URL.revokeObjectURL(url);return;}
+    if(backgroundUrl)URL.revokeObjectURL(backgroundUrl);backgroundUrl=url;
+    element('background-name').textContent=file.name;updateBackground();
+  }catch {URL.revokeObjectURL(url);if(request===backgroundRequest)element('background-name').textContent='배경 이미지를 읽을 수 없습니다.';}
+};
+element('background-remove').onclick=()=>{
+  ++backgroundRequest;if(backgroundUrl)URL.revokeObjectURL(backgroundUrl);backgroundUrl='';
+  element<HTMLInputElement>('background-file').value='';element('background-name').textContent='';updateBackground();
+};
+window.addEventListener('pagehide',()=>{if(backgroundUrl)URL.revokeObjectURL(backgroundUrl);});
+updateBackground();
 async function init(){try{const response=await fetch(`${import.meta.env.BASE_URL}samples/manifest.json`);if(!response.ok)throw new Error('샘플 목록을 불러올 수 없습니다');samples=await response.json();element('sample-count').textContent=String(samples.length).padStart(2,'0');samples.forEach((sample,index)=>{const button=document.createElement('button');button.className='sample-card';button.dataset.file=sample.file;button.innerHTML=`<span class="sample-symbol symbol-${index}">${['✿','▥','◌','♧','◇','▰'][index]??'▦'}</span><span class="sample-copy"><b></b><small></small></span><span class="sample-arrow">↗</span>`;button.querySelector('b')!.textContent=sample.title;button.querySelector('small')!.textContent=`${sample.width} × ${sample.height} · ${sample.frames} frames`;button.onclick=()=>void loadSample(sample);element('samples').append(button);});if(samples[0])await loadSample(samples[0]);}catch(error){message(`${String(error)}. 파일 열기는 계속 사용할 수 있습니다.`,true);element('loading').hidden=true;}}
 void init();
