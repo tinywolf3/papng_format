@@ -1,6 +1,6 @@
 # PAPNG Viewer
 
-Godot 4.7.2 기반의 독립 실행형 이미지 뷰어입니다. Linux·Windows·Android에서 PAPNG, PNG, APNG 파일을 열 수 있습니다. 포맷 버전은 PAPNG 1.1, 앱 버전은 0.2.0입니다.
+Godot 4.7.2 기반의 독립 실행형 이미지 뷰어입니다. Linux·Windows·Android에서 PAPNG, PNG, APNG 파일을 열 수 있습니다. 포맷 버전은 PAPNG 1.1, 앱 버전은 0.3.1입니다.
 
 ## 이미지 보기
 

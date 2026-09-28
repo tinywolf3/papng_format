@@ -28,6 +28,7 @@ PAPNG는 게임용 픽셀아트 리소스의 편집·저장·공유를 위한 **
 [웹뷰어 데모 바로 열기](https://tinywolf3.github.io/papng_format/) — 설치 없이 샘플을 재생하고 마스크 색상을 바꿔 볼 수 있습니다.
 
 - [기능별 PAPNG 샘플 9개](samples/README.md): 마스크 색상, 모든 분포·프레임 제어, 숨김 프레임 합성, 부분 프레임 복원과 메타데이터를 확인할 수 있습니다.
+- [플랫폼별 통합 설치 패키지](packaging/README.md): Ubuntu·Windows 설치기와 Android APK 묶음을 제작합니다. 기본 PAPNG 앱은 Godot 뷰어입니다.
 - [영상 변환기](demos/qt/converter/README.md): Linux·Windows용 Qt 마법사로 MP4·WebM·GIF를 구간·크기·색상 조정 후 PAPNG로 변환합니다.
 - [Godot 픽셀 편집기](demos/godot/editor/README.md): Linux·Windows·Android용 픽셀·마스크 편집, 프레임·소켓·클립 구성, 이미지 가져오기와 PAPNG 저장을 지원합니다.
 - [Godot 이미지 뷰어](demos/godot/viewer/README.md): Linux·Windows·Android용 파일 선택·연결 프로그램, 마스크 색상 변경, 위치 표시와 소켓 부속 미리보기를 지원합니다.
@@ -61,6 +62,7 @@ It preserves original RGBA and adds independently compressed, shareable 16-bit m
 [Open the web viewer demo](https://tinywolf3.github.io/papng_format/) to play samples and adjust mask colors without installation.
 
 - [Nine PAPNG samples](samples/README.md) demonstrate mask colors, every distribution and control type, hidden-frame composition, partial-frame restoration, and socket attachments.
+- [Platform installation packages](packaging/README.md) assemble Ubuntu/Windows installers and an Android APK bundle, using the Godot viewer as the PAPNG default.
 - The [Qt video converter](demos/qt/converter/README.md) turns MP4, WebM and GIF into PAPNG on Linux/Windows through a trim, crop, pixelate and preview wizard.
 - The [Godot pixel editor](demos/godot/editor/README.md) provides Linux/Windows/Android pixel and mask editing, animation authoring, image import, and PAPNG saving.
 - The [standalone Godot viewer](demos/godot/viewer/README.md) opens PAPNG, PNG and APNG on Linux, Windows and Android, with mask colors, overlays and a socket attachment preview.
